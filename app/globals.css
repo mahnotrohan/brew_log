@@ -1382,7 +1382,19 @@ label,
 }
 
 .timeline-shell {
+  cursor: default;
   margin-top: 20px;
+  overflow: visible;
+  padding-bottom: 0;
+  user-select: auto;
+}
+
+.mobile-timeline {
+  display: block;
+}
+
+.score-canvas {
+  display: none;
 }
 
 .score-canvas {
@@ -1444,6 +1456,22 @@ label,
   gap: 5px;
   padding: 0 0 20px 30px;
   position: relative;
+}
+
+.public-recipe .mobile-timeline,
+.preview-panel .mobile-timeline {
+  background: var(--card);
+  border: 1px solid var(--rule);
+  border-radius: 9px;
+  padding: 20px;
+}
+
+.featured-sheet .mobile-timeline {
+  margin-top: 4px;
+}
+
+.recipe-actions .action-group {
+  justify-content: flex-end;
 }
 
 .mobile-step::before {

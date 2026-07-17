@@ -273,6 +273,163 @@ function recipeTitle(recipe: Pick<Recipe, "title" | "brewer" | "dose" | "ratio" 
   return recipe.title.trim() || defaultRecipeTitle(recipe);
 }
 
+function wrapCanvasText(
+  context: CanvasRenderingContext2D,
+  text: string,
+  maxWidth: number,
+) {
+  const words = text.trim().split(/\s+/).filter(Boolean);
+  const lines: string[] = [];
+  let line = "";
+
+  words.forEach((word) => {
+    const candidate = line ? `${line} ${word}` : word;
+    if (line && context.measureText(candidate).width > maxWidth) {
+      lines.push(line);
+      line = word;
+    } else {
+      line = candidate;
+    }
+  });
+
+  if (line) lines.push(line);
+  return lines;
+}
+
+async function exportRecipeJpeg(recipe: Recipe) {
+  const width = 1400;
+  const stepHeight = 142;
+  const height = 650 + recipe.timeline.length * stepHeight;
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const context = canvas.getContext("2d");
+
+  if (!context) throw new Error("Canvas is unavailable");
+
+  context.fillStyle = "#f7f5f2";
+  context.fillRect(0, 0, width, height);
+
+  context.fillStyle = "#ffffff";
+  context.beginPath();
+  context.roundRect(70, 70, width - 140, height - 140, 24);
+  context.fill();
+  context.strokeStyle = "#e5ddd2";
+  context.lineWidth = 2;
+  context.stroke();
+
+  context.fillStyle = "#486c63";
+  context.font = "700 22px Inter, Arial, sans-serif";
+  context.fillText(recipe.brewer.toUpperCase(), 130, 145);
+
+  context.fillStyle = "#20201e";
+  context.font = "650 52px Inter, Arial, sans-serif";
+  const titleLines = wrapCanvasText(context, recipeTitle(recipe), 1100).slice(0, 2);
+  titleLines.forEach((line, index) => context.fillText(line, 130, 215 + index * 60));
+  const titleBottom = 215 + (titleLines.length - 1) * 60;
+
+  if (recipe.bean.trim()) {
+    context.fillStyle = "#6e6b66";
+    context.font = "400 25px Inter, Arial, sans-serif";
+    context.fillText(recipe.bean, 130, titleBottom + 48);
+  }
+
+  const metrics = [
+    ["COFFEE", `${recipe.dose}g`],
+    ["RATIO", ratioLabel(recipe.ratio)],
+    ["WATER", `${recipe.water}g`],
+    ["TEMP", `${recipe.temp}C`],
+    ["TIME", formatTime(totalTime(recipe.timeline))],
+  ];
+  const metricsTop = titleBottom + 92;
+  const metricWidth = 228;
+
+  context.strokeStyle = "#e5ddd2";
+  context.beginPath();
+  context.roundRect(130, metricsTop, 1140, 112, 14);
+  context.stroke();
+  metrics.forEach(([label, value], index) => {
+    const x = 130 + index * metricWidth;
+    if (index) {
+      context.beginPath();
+      context.moveTo(x, metricsTop);
+      context.lineTo(x, metricsTop + 112);
+      context.stroke();
+    }
+    context.fillStyle = "#6e6b66";
+    context.font = "700 16px Inter, Arial, sans-serif";
+    context.fillText(label, x + 24, metricsTop + 35);
+    context.fillStyle = "#20201e";
+    context.font = "650 31px Inter, Arial, sans-serif";
+    context.fillText(value, x + 24, metricsTop + 78);
+  });
+
+  const timelineTop = metricsTop + 176;
+  context.fillStyle = "#20201e";
+  context.font = "650 28px Inter, Arial, sans-serif";
+  context.fillText("Brew timeline", 130, timelineTop);
+  context.fillStyle = "#6e6b66";
+  context.font = "400 19px Inter, Arial, sans-serif";
+  context.fillText(`${recipe.timeline.length} steps`, 1150, timelineTop);
+
+  const lineX = 158;
+  const firstStepY = timelineTop + 70;
+  const lastStepY = firstStepY + Math.max(0, recipe.timeline.length - 1) * stepHeight;
+  context.strokeStyle = "#e5ddd2";
+  context.lineWidth = 4;
+  context.beginPath();
+  context.moveTo(lineX, firstStepY);
+  context.lineTo(lineX, lastStepY);
+  context.stroke();
+
+  recipe.timeline.forEach((step, index) => {
+    const y = firstStepY + index * stepHeight;
+    const readout = `${eventWindowLabel(recipe.timeline, index)} · ${timelineScaleLabel(recipe.timeline, index)}`;
+    context.fillStyle = isDrawdownEvent(step) ? "#486c63" : "#d89b45";
+    context.beginPath();
+    context.arc(lineX, y, 13, 0, Math.PI * 2);
+    context.fill();
+    context.strokeStyle = "#ffffff";
+    context.lineWidth = 5;
+    context.stroke();
+
+    context.fillStyle = "#20201e";
+    context.font = "650 25px Inter, Arial, sans-serif";
+    context.fillText(step.type, 205, y + 4);
+    context.fillStyle = "#6e6b66";
+    context.font = "600 19px Inter, Arial, sans-serif";
+    context.fillText(readout, 880, y + 3);
+    if (step.note.trim()) {
+      context.font = "400 20px Inter, Arial, sans-serif";
+      wrapCanvasText(context, step.note, 920)
+        .slice(0, 2)
+        .forEach((line, lineIndex) => context.fillText(line, 205, y + 42 + lineIndex * 28));
+    }
+  });
+
+  context.fillStyle = "#6e6b66";
+  context.font = "500 18px Inter, Arial, sans-serif";
+  context.fillText("Brew Library", 130, height - 105);
+  if (recipe.creator.trim()) {
+    context.textAlign = "right";
+    context.fillText(`Recipe by ${recipe.creator}`, width - 130, height - 105);
+  }
+
+  const blob = await new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob(
+      (result) => result ? resolve(result) : reject(new Error("JPEG export failed")),
+      "image/jpeg",
+      0.94,
+    );
+  });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `${slugify(recipeTitle(recipe)) || "brew-recipe"}.jpeg`;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
 function readNumberInput(value: string) {
   if (!value.trim()) return 0;
   const numberValue = Number(value);
@@ -1140,6 +1297,17 @@ function Builder({
 }
 
 function RecipePage({ recipe }: { recipe: Recipe }) {
+  const [isExporting, setIsExporting] = useState(false);
+
+  async function handleExport() {
+    setIsExporting(true);
+    try {
+      await exportRecipeJpeg(recipe);
+    } finally {
+      setIsExporting(false);
+    }
+  }
+
   return (
     <section className="recipe-page print-page">
       <div className="recipe-actions">
@@ -1147,6 +1315,9 @@ function RecipePage({ recipe }: { recipe: Recipe }) {
           <p className="eyebrow share-path">/{slugify(recipe.creator) || "guest"}/{recipe.id}</p>
         </div>
         <div className="action-group">
+          <button className="primary-button" disabled={isExporting} onClick={handleExport}>
+            {isExporting ? "Exporting..." : "Export JPEG"}
+          </button>
           <button className="secondary-button" onClick={() => window.print()}>
             Print
           </button>
@@ -1254,7 +1425,7 @@ function Timeline({ recipe }: { recipe: Recipe }) {
       onPointerLeave={endDrag}
     >
       <div className="mobile-timeline">
-        <p className="eyebrow">Brew steps</p>
+        <p className="eyebrow">Brew timeline</p>
         <ol>
           {recipe.timeline.map((step, index) => {
             const readout = `${eventWindowLabel(recipe.timeline, index)} · ${timelineScaleLabel(recipe.timeline, index)}`;
