@@ -593,15 +593,10 @@ function Header({ onCreate, onHome }: { onCreate: () => void; onHome: () => void
         <button className="brand-lockup" onClick={onHome}>
           <strong>Brew Library</strong>
         </button>
-        <div className="issue-meta">
-          <span>A library of brew recipes</span>
-        </div>
-        <button className="primary-button" onClick={onCreate}>
-          Write a recipe
-        </button>
-      </div>
-      <div className="masthead-band">
-        Browse, write, and share brew recipes
+        <nav className="site-nav" aria-label="Primary navigation">
+          <button className="ghost-button" onClick={onHome}>Library</button>
+          <button className="primary-button" onClick={onCreate}>Write recipe</button>
+        </nav>
       </div>
     </header>
   );
@@ -1212,9 +1207,9 @@ function Timeline({ recipe }: { recipe: Recipe }) {
   const shellRef = useRef<HTMLElement | null>(null);
   const dragRef = useRef({ active: false, startX: 0, scrollLeft: 0 });
   const length = totalTime(recipe.timeline);
-  const trackWidth = Math.max(880, length * 3.1);
-  const baseline = 140;
-  const trackHeight = 460;
+  const trackWidth = Math.max(760, length * 2.7);
+  const baseline = 118;
+  const trackHeight = 370;
   const markers = Array.from({ length: Math.floor(length / 15) + 1 }, (_, index) => index * 15);
 
   function handlePointerDown(event: ReactPointerEvent<HTMLElement>) {
@@ -1332,7 +1327,7 @@ function Timeline({ recipe }: { recipe: Recipe }) {
                 style={{
                   left: `${left}%`,
                   width: `${width}%`,
-                  top: `${baseline + 220}px`,
+                  top: `${baseline + 190}px`,
                 }}
               >
                 <strong>{step.type}</strong>
