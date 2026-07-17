@@ -26,8 +26,9 @@ export const metadata: Metadata = {
   description:
     "A structured, brewer-agnostic coffee recipe builder and public library.",
   icons: {
-    icon: "/favicon.svg",
-    shortcut: "/favicon.svg",
+    icon: [{ url: "/favicon.png", sizes: "447x447", type: "image/png" }],
+    shortcut: "/favicon.png",
+    apple: "/favicon.png",
   },
 };
 
