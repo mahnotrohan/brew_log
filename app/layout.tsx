@@ -22,7 +22,7 @@ const spaceMono = Space_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Brew - Universal Coffee Recipes",
+  title: "Brew Library - Universal Coffee Recipes",
   description:
     "A structured, brewer-agnostic coffee recipe builder and public library.",
   icons: {

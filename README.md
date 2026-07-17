@@ -5,7 +5,7 @@ It turns the attached PRD into a responsive web app with a public recipe library
 a structured recipe builder, visual brew timelines, local publishing, creator
 profiles, and print styling.
 
-The current visual direction follows the **Recipe Journal** style guide: a muted
+The current visual direction follows the **Brew Library** style guide: a muted
 oat and clay palette, editorial masthead, Fraunces/Space Mono/Inter typography,
 paper texture, spec ledgers, and a musical-notation-inspired `Brew Score`
 timeline.

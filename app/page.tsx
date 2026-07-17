@@ -535,19 +535,17 @@ function Header({ onCreate, onHome }: { onCreate: () => void; onHome: () => void
     <header className="site-masthead">
       <div className="masthead-inner">
         <button className="brand-lockup" onClick={onHome}>
-          <strong>Brew<span>.</span></strong>
+          <strong>Brew Library</strong>
         </button>
         <div className="issue-meta">
-          <span>Recipe Journal</span>
-          <span>Issue 001</span>
-          <span>Open notation</span>
+          <span>A library of brew recipes</span>
         </div>
         <button className="primary-button" onClick={onCreate}>
           Write a recipe
         </button>
       </div>
       <div className="masthead-band">
-        A coffee quarterly you can brew from
+        Browse, write, and share brew recipes
       </div>
     </header>
   );
@@ -576,7 +574,7 @@ function Library({
         <div className="hero-grid">
           <div className="hero-copy">
             <div>
-              <p className="eyebrow">Open recipe notation</p>
+              <p className="eyebrow">Brew recipe library</p>
               <h1 className="journal-title">Brew recipes people can actually follow.</h1>
             </div>
             <p className="hero-dek">
