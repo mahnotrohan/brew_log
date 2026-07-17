@@ -338,7 +338,7 @@ async function exportRecipeJpeg(recipe: Recipe) {
     ["COFFEE", `${recipe.dose}g`],
     ["RATIO", ratioLabel(recipe.ratio)],
     ["WATER", `${recipe.water}g`],
-    ["TEMP", `${recipe.temp}C`],
+    ["TEMP", `${recipe.temp}°C`],
     ["TIME", formatTime(totalTime(recipe.timeline))],
   ];
   const metricsTop = titleBottom + 92;
@@ -1108,7 +1108,7 @@ function Builder({
             />
           </label>
           <label>
-            Temperature (C)
+            Temperature (°C)
             <input
               type="number"
               value={numberInputValue(draft.temp)}
@@ -1351,7 +1351,7 @@ function RecipeHeader({ recipe, compact = false }: { recipe: Recipe; compact?: b
         {recipe.dose ? <Metric label="Dose" value={`${recipe.dose}g`} /> : null}
         {recipe.ratio ? <Metric label="Ratio" value={ratioLabel(recipe.ratio)} /> : null}
         {recipe.water ? <Metric label="Water" value={`${recipe.water}g`} /> : null}
-        {recipe.temp ? <Metric label="Temp" value={`${recipe.temp}C`} /> : null}
+        {recipe.temp ? <Metric label="Temp" value={`${recipe.temp}°C`} /> : null}
         <Metric label="Time" value={formatTime(totalTime(recipe.timeline))} />
       </div>
       {grindItems.length ? (

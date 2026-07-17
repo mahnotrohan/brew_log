@@ -1375,10 +1375,13 @@ label,
 .card-meta span,
 .recipe-stats span,
 .grind-strip span {
-  background: #f4f1ec;
   border-color: var(--rule);
   font-family: var(--sans);
   font-size: 0.68rem;
+}
+
+.grind-strip span {
+  background: #f4f1ec;
 }
 
 .timeline-shell {
