@@ -112,9 +112,9 @@ label {
   color: var(--ink);
   display: block;
   font-family: var(--serif);
-  font-size: 4.15rem;
+  font-size: clamp(3.1rem, 6vw, 4.15rem);
   font-weight: 420;
-  line-height: 0.82;
+  line-height: 0.88;
 }
 
 .brand-lockup span {
@@ -203,7 +203,7 @@ label {
 
 .journal-title {
   font-family: var(--serif);
-  font-size: 4.35rem;
+  font-size: clamp(3.25rem, 6.2vw, 4.35rem);
   font-weight: 360;
   line-height: 0.98;
   margin-top: 18px;
@@ -554,6 +554,56 @@ label {
   cursor: grabbing;
 }
 
+.mobile-timeline {
+  display: none;
+}
+
+.mobile-timeline ol {
+  display: grid;
+  gap: 10px;
+  list-style: none;
+  margin-top: 12px;
+  padding: 0;
+}
+
+.mobile-step {
+  background: rgba(251, 245, 236, 0.62);
+  border: 1px solid var(--rule-2);
+  border-radius: 8px;
+  display: grid;
+  gap: 8px;
+  padding: 13px 14px;
+}
+
+.mobile-step div {
+  align-items: baseline;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+}
+
+.mobile-step span,
+.mobile-step p {
+  color: var(--ink-2);
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
+.mobile-step strong {
+  font-family: var(--serif);
+  font-size: 1.35rem;
+  font-weight: 420;
+  line-height: 1;
+  text-align: right;
+}
+
+.mobile-step small {
+  color: var(--ink-2);
+  font-size: 0.84rem;
+  line-height: 1.4;
+}
+
 .score-canvas {
   background:
     linear-gradient(90deg, rgba(32, 24, 15, 0.032) 1px, transparent 1px),
@@ -769,6 +819,10 @@ label {
     grid-template-columns: 1fr;
   }
 
+  .masthead-inner > .primary-button {
+    justify-self: start;
+  }
+
   .issue-meta {
     justify-self: start;
     text-align: left;
@@ -790,18 +844,67 @@ label {
 }
 
 @media (max-width: 680px) {
+  body {
+    background-size: 5px 5px;
+  }
+
   .masthead-inner {
     align-items: start;
     gap: 14px;
     padding: 18px 16px 14px;
   }
 
+  .masthead-inner > .primary-button {
+    min-width: 0;
+    width: 100%;
+  }
+
   .brand-lockup strong {
-    font-size: 3.15rem;
+    font-size: clamp(2.35rem, 14vw, 3.15rem);
+    line-height: 0.95;
+  }
+
+  .issue-meta,
+  .masthead-band,
+  .eyebrow,
+  label {
+    letter-spacing: 0.1em;
+  }
+
+  .masthead-band {
+    font-size: 0.62rem;
+    line-height: 1.35;
+    padding: 8px 16px;
+  }
+
+  .hero-band {
+    padding-bottom: 28px;
+    padding-top: 28px;
+  }
+
+  .hero-copy {
+    gap: 18px;
   }
 
   .journal-title {
-    font-size: 3rem;
+    font-size: clamp(2.65rem, 13vw, 3.35rem);
+    line-height: 1;
+    margin-top: 12px;
+  }
+
+  .hero-dek {
+    font-size: 1rem;
+    line-height: 1.45;
+    max-width: none;
+  }
+
+  .hero-copy .primary-button,
+  .hero-copy .secondary-button {
+    flex: 1 1 150px;
+  }
+
+  .featured-sheet {
+    box-shadow: none;
   }
 
   .hero-band,
@@ -817,21 +920,46 @@ label {
     flex-direction: column;
   }
 
+  .section-heading {
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+
+  .section-heading h2 {
+    font-size: 2rem;
+  }
+
   .filter-bar,
   .form-grid,
-  .event-row,
-  .header-metrics {
+  .event-row {
     grid-template-columns: 1fr;
   }
 
+  .filter-bar {
+    gap: 14px;
+    margin-bottom: 16px;
+  }
+
   .recipe-card {
-    gap: 12px;
+    gap: 10px;
     grid-template-columns: 1fr;
-    padding: 16px 0;
+    padding: 18px 2px;
+  }
+
+  .recipe-card h3 {
+    font-size: 1.42rem;
+    line-height: 1.08;
   }
 
   .recipe-card .recipe-stats {
     display: flex;
+    gap: 10px;
+  }
+
+  .recipe-card .card-meta span,
+  .recipe-card .recipe-stats span,
+  .creator-line {
+    font-size: 0.66rem;
   }
 
   .creator-line {
@@ -851,7 +979,50 @@ label {
   }
 
   .recipe-header h2 {
-    font-size: 2.55rem;
+    font-size: clamp(2.15rem, 11vw, 2.55rem);
+  }
+
+  .recipe-header.compact h2 {
+    font-size: clamp(1.9rem, 9vw, 2.3rem);
+  }
+
+  .header-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .header-metrics div {
+    border-bottom: 1px solid var(--rule-2);
+    border-right: 1px solid var(--rule-2);
+    padding: 12px 10px;
+  }
+
+  .header-metrics div:nth-child(2n) {
+    border-right: 0;
+  }
+
+  .header-metrics strong {
+    font-size: 1.55rem;
+  }
+
+  .grind-strip span {
+    font-size: 0.66rem;
+    padding: 5px 8px;
+  }
+
+  .timeline-shell {
+    cursor: default;
+    margin-top: 20px;
+    overflow: visible;
+    padding-bottom: 0;
+    user-select: auto;
+  }
+
+  .mobile-timeline {
+    display: block;
+  }
+
+  .score-canvas {
+    display: none;
   }
 }
 

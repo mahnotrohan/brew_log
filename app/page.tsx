@@ -1107,7 +1107,7 @@ function Timeline({ recipe }: { recipe: Recipe }) {
 
   function handlePointerDown(event: ReactPointerEvent<HTMLElement>) {
     const shell = shellRef.current;
-    if (!shell || event.button !== 0) return;
+    if (!shell || event.button !== 0 || shell.scrollWidth <= shell.clientWidth) return;
     dragRef.current = {
       active: true,
       startX: event.clientX,
@@ -1146,6 +1146,24 @@ function Timeline({ recipe }: { recipe: Recipe }) {
       onPointerCancel={endDrag}
       onPointerLeave={endDrag}
     >
+      <div className="mobile-timeline">
+        <p className="eyebrow">Brew steps</p>
+        <ol>
+          {recipe.timeline.map((step, index) => {
+            const readout = `${eventWindowLabel(step)} · ${timelineScaleLabel(recipe.timeline, index)}`;
+            return (
+              <li className="mobile-step" key={step.id}>
+                <div>
+                  <span>{String(index + 1).padStart(2, "0")}</span>
+                  <strong>{step.type}</strong>
+                </div>
+                <p>{readout}</p>
+                {step.note.trim() ? <small>{step.note}</small> : null}
+              </li>
+            );
+          })}
+        </ol>
+      </div>
       <div
         className="score-canvas"
         style={{ minWidth: `${trackWidth}px`, height: `${trackHeight}px` }}
