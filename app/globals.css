@@ -570,6 +570,19 @@ label {
   width: var(--disc);
 }
 
+.score-cumulative {
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  font-weight: 700;
+  left: 50%;
+  line-height: 1;
+  position: absolute;
+  top: calc(var(--baseline) - var(--stem) - var(--disc) - 18px);
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
 .bloom-disc {
   animation: bloom-breathe 3200ms ease-in-out infinite;
 }

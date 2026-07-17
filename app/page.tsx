@@ -274,11 +274,36 @@ function targetNumber(target: string) {
   return match ? Number(match[0]) : null;
 }
 
+function gramLabel(value: number) {
+  return `${Number.isInteger(value) ? value : value.toFixed(1)}g`;
+}
+
 function scaleLabel(step: TimelineEvent) {
   const target = step.target.trim();
   if (!target) return "no scale target";
   const normalizedTarget = /g$/i.test(target) ? target : `${target}g`;
   return `${step.tare ? "+" : ""}${normalizedTarget}`;
+}
+
+function cumulativeWeightAt(events: TimelineEvent[], index: number) {
+  let cumulativeWeight: number | null = null;
+
+  events.slice(0, index + 1).forEach((step) => {
+    const target = targetNumber(step.target);
+    if (target === null) return;
+    cumulativeWeight =
+      step.tare && cumulativeWeight !== null ? cumulativeWeight + target : target;
+  });
+
+  return cumulativeWeight;
+}
+
+function timelineScaleLabel(events: TimelineEvent[], index: number) {
+  const step = events[index];
+  if (step.target.trim()) return scaleLabel(step);
+
+  const cumulativeWeight = cumulativeWeightAt(events, index);
+  return cumulativeWeight === null ? "no scale target" : `${gramLabel(cumulativeWeight)} cumulative`;
 }
 
 function eventWindowLabel(step: TimelineEvent) {
@@ -1148,7 +1173,10 @@ function Timeline({ recipe }: { recipe: Recipe }) {
           const left = 5 + (step.start / length) * 90;
           const width = Math.max(6, (step.duration / length) * 90);
           const scaleTarget = step.target.trim();
-          const readout = `${eventWindowLabel(step)} · ${scaleLabel(step)}`;
+          const cumulativeWeight = cumulativeWeightAt(recipe.timeline, index);
+          const cumulativeLabel =
+            cumulativeWeight === null ? "" : gramLabel(cumulativeWeight);
+          const readout = `${eventWindowLabel(step)} · ${timelineScaleLabel(recipe.timeline, index)}`;
           const amount = eventWaterAmount(recipe.timeline, index);
           const discSize = Math.max(16, Math.min(34, 15 + amount / 9));
           const stem = [64, 92, 52, 78][index % 4];
@@ -1159,6 +1187,7 @@ function Timeline({ recipe }: { recipe: Recipe }) {
             formatTime(step.start),
             step.type,
             scaleTarget ? scaleLabel(step) : "",
+            cumulativeLabel ? `${cumulativeLabel} cumulative` : "",
             step.note,
           ]
             .filter(Boolean)
@@ -1200,6 +1229,9 @@ function Timeline({ recipe }: { recipe: Recipe }) {
             >
               <span className="score-stem" />
               <span className={index === 0 ? "score-disc bloom-disc" : "score-disc"} />
+              {cumulativeLabel ? (
+                <span className="score-cumulative">{cumulativeLabel}</span>
+              ) : null}
               <div className="score-note-label">
                 <strong>{step.type}</strong>
                 <span className="score-readout">{readout}</span>
