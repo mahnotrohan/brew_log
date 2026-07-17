@@ -575,7 +575,9 @@ function Library({
           <div className="hero-copy">
             <div>
               <p className="eyebrow">Brew recipe library</p>
-              <h1 className="journal-title">Brew recipes people can actually follow.</h1>
+              <h1 className="journal-title">
+                Brew coffee, log your favorite recipes, and share with everyone.
+              </h1>
             </div>
             <p className="hero-dek">
               A shared, brewer-agnostic place to write coffee recipes down,
@@ -597,8 +599,7 @@ function Library({
       <section id="library" className="mx-auto max-w-7xl px-5 py-10 sm:px-8">
         <div className="section-heading">
           <div>
-            <p className="eyebrow">Public library</p>
-            <h2>Recipes by brewer, ratio, roast, and creator</h2>
+            <h2>Library</h2>
           </div>
           <p>{recipes.length} recipes</p>
         </div>
