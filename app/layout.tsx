@@ -22,9 +22,9 @@ const spaceMono = Space_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Brew Library - Universal Coffee Recipes",
+  title: "Bloom - Coffee Recipe Library",
   description:
-    "A structured, brewer-agnostic coffee recipe builder and public library.",
+    "Bloom is a structured, brewer-agnostic coffee recipe builder and shared library.",
   icons: {
     icon: [{ url: "/favicon.png", sizes: "447x447", type: "image/png" }],
     shortcut: "/favicon.png",

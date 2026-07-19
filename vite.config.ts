@@ -7,7 +7,21 @@ import { sites } from "./build/sites-vite-plugin";
 const SITE_CREATOR_PLACEHOLDER_DATABASE_ID =
   "00000000-0000-4000-8000-000000000000";
 
-const { d1, r2 } = hostingConfig;
+const { d1, r2, d1DatabaseName, d1DatabaseId } = hostingConfig as {
+  d1: string | null;
+  r2: string | null;
+  d1DatabaseName?: string;
+  d1DatabaseId?: string;
+};
+
+// Only emit a real D1 binding once an actual database_id is present.
+// This keeps deploys safe before the D1 database is provisioned: the app
+// simply falls back to browser localStorage until the binding is real.
+const resolvedD1Id =
+  d1DatabaseId && d1DatabaseId.trim()
+    ? d1DatabaseId.trim()
+    : SITE_CREATOR_PLACEHOLDER_DATABASE_ID;
+const d1Enabled = Boolean(d1) && resolvedD1Id !== SITE_CREATOR_PLACEHOLDER_DATABASE_ID;
 
 const localBindingConfig = {
   main: "./worker/index.ts",
@@ -15,17 +29,22 @@ const localBindingConfig = {
   compatibility_flags: ["nodejs_compat"],
   routes: [
     {
+      pattern: "bloom.rohanmahnot.space",
+      custom_domain: true,
+      zone_name: "rohanmahnot.space",
+    },
+    {
       pattern: "brew-log.rohanmahnot.space",
       custom_domain: true,
       zone_name: "rohanmahnot.space",
     },
   ],
-  d1_databases: d1
+  d1_databases: d1Enabled
     ? [
         {
-          binding: d1,
-          database_name: "site-creator-d1",
-          database_id: SITE_CREATOR_PLACEHOLDER_DATABASE_ID,
+          binding: d1 as string,
+          database_name: d1DatabaseName || "brewlog-db",
+          database_id: resolvedD1Id,
         },
       ]
     : [],

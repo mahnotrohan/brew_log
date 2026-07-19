@@ -1,4 +1,6 @@
 {
-  "d1": null,
+  "d1": "DB",
+  "d1DatabaseName": "brewlog-db",
+  "d1DatabaseId": "596292ce-0bfa-4dd7-997a-870dd963f07b",
   "r2": null
 }

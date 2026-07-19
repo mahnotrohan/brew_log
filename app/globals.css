@@ -528,7 +528,7 @@ label {
   border-bottom: 1px dotted var(--rule-2);
   display: grid;
   gap: 10px;
-  grid-template-columns: 130px 84px 116px 96px 64px 76px minmax(190px, 1fr) 74px;
+  grid-template-columns: 130px 84px 116px 96px 76px minmax(190px, 1fr) 74px;
   padding: 12px 0;
 }
 
@@ -1667,5 +1667,311 @@ label,
   .timeline-axis {
     min-width: 0 !important;
     width: 100% !important;
+  }
+}
+
+/* ===== Bloom redesign: compact hero + Style B card grid ===== */
+
+.bloom-hero {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
+  /* Match the #library container exactly so the hero and library left edges line up. */
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 34px 22px 20px;
+}
+
+/* Keep the search input and brewer select the same height so their labels
+   and boxes line up on the same baseline. */
+.filter-bar {
+  align-items: end;
+}
+
+.filter-bar input,
+.filter-bar select {
+  height: 44px;
+  min-height: 44px;
+}
+
+.bloom-hero-title {
+  font-family: var(--serif);
+  font-size: clamp(1.5rem, 3.2vw, 2rem);
+  font-weight: 460;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+  margin: 6px 0 0;
+  max-width: 34ch;
+}
+
+.recipe-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+  gap: 16px;
+  border-top: none;
+}
+
+.recipe-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  align-items: stretch;
+  background: var(--card);
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--accent, var(--teal));
+  border-radius: 14px;
+  overflow: hidden;
+  padding: 0;
+  min-height: 0;
+  cursor: pointer;
+  transition:
+    box-shadow 160ms ease,
+    transform 160ms ease,
+    border-color 160ms ease;
+}
+
+.recipe-card:hover,
+.recipe-card:focus-visible {
+  background: var(--card);
+  border-color: var(--rule-2);
+  border-left-color: var(--accent, var(--teal));
+  box-shadow: 0 8px 22px rgba(32, 32, 30, 0.09);
+  transform: translateY(-2px);
+  outline: none;
+}
+
+.recipe-card .rc-body {
+  flex: 1;
+  padding: 16px 18px 14px;
+}
+
+.recipe-card .card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 9px;
+}
+
+.recipe-card .card-meta span {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  color: var(--accent, var(--teal));
+  font-family: var(--sans);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.recipe-card .card-meta span + span::before {
+  content: "·";
+  color: var(--rule-2);
+  margin-right: 8px;
+}
+
+.recipe-card h3 {
+  font-family: var(--serif);
+  font-size: 1.3rem;
+  font-weight: 500;
+  line-height: 1.1;
+  margin: 0 0 5px;
+  padding-right: 34px;
+}
+
+.brewer-icon {
+  position: absolute;
+  top: 14px;
+  right: 15px;
+  color: var(--accent, var(--teal));
+  pointer-events: none;
+}
+
+/* ===== Recipe builder: explicit, related-fields-per-row layout ===== */
+.builder-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.form-row {
+  display: grid;
+  gap: 12px;
+  align-items: start;
+}
+
+.form-row.cols-title {
+  grid-template-columns: 2fr 1fr;
+}
+
+.form-row.cols-brew {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+.form-row.cols-4 {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+.form-row.cols-2 {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.form-row.cols-1 {
+  grid-template-columns: 1fr;
+}
+
+.form-row.cols-notes {
+  grid-template-columns: 2fr 1fr;
+}
+
+.form-row .field-block {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.grind-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Uniform capsule pill inputs everywhere: same height, same font, fully
+   rounded. Width comes from the layout, so short fields read as small pills
+   and long fields (title, notes, name) read as longer pills. */
+input:not([type="checkbox"]),
+select {
+  height: 44px;
+  min-height: 44px;
+  border-radius: 999px;
+  padding: 0 18px;
+  font-family: var(--sans);
+  font-size: 0.92rem;
+  font-weight: 500;
+}
+
+select {
+  padding-right: 34px;
+}
+
+/* Keep the swirl checkbox sitting on the input baseline, not the label top. */
+.form-row .swirl-cell {
+  align-self: end;
+  min-height: 44px;
+}
+
+@media (max-width: 640px) {
+  .form-row.cols-title,
+  .form-row.cols-brew,
+  .form-row.cols-4,
+  .form-row.cols-2,
+  .form-row.cols-notes {
+    grid-template-columns: 1fr;
+  }
+}
+
+.recipe-card .rc-bean {
+  color: var(--ink-2);
+  font-size: 0.78rem;
+  line-height: 1.45;
+  margin: 0;
+}
+
+.recipe-card .recipe-stats {
+  display: flex;
+  gap: 0;
+  margin: 0;
+  border-top: 1px solid var(--rule);
+}
+
+.recipe-card .recipe-stats div {
+  flex: 1;
+  padding: 9px 8px;
+  text-align: center;
+  border-right: 1px solid var(--rule);
+}
+
+.recipe-card .recipe-stats div:last-child {
+  border-right: 0;
+}
+
+.recipe-card .recipe-stats span {
+  display: block;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  margin-bottom: 2px;
+  color: var(--ink-2);
+  font-family: var(--sans);
+  font-size: 0.54rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.recipe-card .recipe-stats strong {
+  font-size: 0.95rem;
+  font-weight: 650;
+  color: var(--ink);
+}
+
+.recipe-card .creator-line {
+  margin: 0;
+  padding: 9px 18px 13px;
+  text-align: left;
+  color: var(--ink-2);
+  font-family: var(--sans);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+@media (max-width: 640px) {
+  .bloom-hero {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 14px;
+    padding-top: 22px;
+  }
+
+  .recipe-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ===== Bloom: one shared container + fewer divider rules ===== */
+
+/* App name, hero, and library share the same 1180px container and left edge. */
+.masthead-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 14px 22px;
+}
+
+/* Drop the heavy horizontal rules that chopped the page into sections. */
+.site-masthead {
+  border-bottom: none;
+}
+
+.filter-bar {
+  border-top: none;
+  border-bottom: none;
+  padding: 6px 0 2px;
+}
+
+@media (max-width: 640px) {
+  .masthead-inner,
+  .bloom-hero,
+  #library {
+    padding-left: 16px;
+    padding-right: 16px;
   }
 }

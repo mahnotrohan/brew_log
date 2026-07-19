@@ -191,8 +191,8 @@ const blankDraft: Draft = {
   ratio: 16.7,
   water: 300,
   grind: "Medium-Fine",
-  grinder: "Fellow Ode Gen 2",
-  clicks: "5",
+  grinder: "Fellow Ode Gen 2 · 5",
+  clicks: "",
   temp: 93,
   roast: ["Medium-Light"],
   bean: "Washed coffee, clean sweetness",
@@ -409,7 +409,7 @@ async function exportRecipeJpeg(recipe: Recipe) {
 
   context.fillStyle = "#6e6b66";
   context.font = "500 18px Inter, Arial, sans-serif";
-  context.fillText("Brew Library", 130, height - 105);
+  context.fillText("Bloom", 130, height - 105);
   if (recipe.creator.trim()) {
     context.textAlign = "right";
     context.fillText(`Recipe by ${recipe.creator}`, width - 130, height - 105);
@@ -617,6 +617,37 @@ function isReturningVisitor() {
   }
 }
 
+const recipesApiPath = "/api/recipes";
+
+// Shared server storage (Cloudflare D1). Returns null on any failure so the
+// caller can fall back to browser localStorage and keep working offline.
+async function fetchServerRecipes(): Promise<Recipe[] | null> {
+  try {
+    const response = await fetch(recipesApiPath, {
+      headers: { accept: "application/json" },
+    });
+    if (!response.ok) return null;
+    const body = (await response.json()) as { recipes?: StoredRecipe[] };
+    if (!body || !Array.isArray(body.recipes)) return null;
+    return migrateRecipes(body.recipes);
+  } catch {
+    return null;
+  }
+}
+
+async function saveServerRecipe(recipe: Recipe): Promise<boolean> {
+  try {
+    const response = await fetch(recipesApiPath, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(recipe),
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
 export default function Home() {
   const storageReady = useRef(false);
   const [recipes, setRecipes] = useState<Recipe[]>(seedRecipes);
@@ -629,22 +660,40 @@ export default function Home() {
 
   useEffect(() => {
     const hydrateStorage = window.setTimeout(() => {
-      const returningVisitor = isReturningVisitor();
-      setRecipes(readRecipes());
+      const cached = readRecipes();
+      setRecipes(cached);
       storageReady.current = true;
       writeCookie(visitorCookieKey, "1");
+
+      // Reconcile with shared server storage (D1). The server is the source of
+      // truth; any recipe that exists only on this device (e.g. published
+      // before sync existed, or while offline) is pushed up so it stops being
+      // device-only. Seed recipes are never uploaded. If the server is
+      // unreachable, we silently keep the localStorage view.
+      void (async () => {
+        const server = await fetchServerRecipes();
+        if (!server) return;
+        const seedIds = new Set(seedRecipes.map((recipe) => recipe.id));
+        const serverIds = new Set(server.map((recipe) => recipe.id));
+        const localOnly = cached.filter(
+          (recipe) => !serverIds.has(recipe.id) && !seedIds.has(recipe.id),
+        );
+        localOnly.forEach((recipe) => void saveServerRecipe(recipe));
+        const merged = [...server, ...localOnly];
+        if (!merged.length) return; // keep the seed fallback until something is stored
+        setRecipes(merged);
+        try {
+          window.localStorage.setItem(recipeStorageKey, JSON.stringify(merged));
+        } catch {
+          // ignore cache write failures
+        }
+      })();
 
       if (window.location.hash.replace("#/", "").split("/")[0] === "builder") {
         setDraft((currentDraft) => ({
           ...currentDraft,
           creator: currentDraft.creator || readAuthorName(),
         }));
-      }
-
-      if (returningVisitor && !window.location.hash) {
-        window.requestAnimationFrame(() => {
-          document.getElementById("library")?.scrollIntoView({ block: "start" });
-        });
       }
     }, 0);
 
@@ -705,6 +754,7 @@ export default function Home() {
       writeCookie(authorCookieKey, draft.creator.trim());
     }
     setRecipes((items) => [recipe, ...items]);
+    void saveServerRecipe(recipe);
     setPublishMessage(`Published as /${recipe.creator}/${recipe.id}.`);
     go("recipe", recipe.id);
   }
@@ -748,7 +798,7 @@ function Header({ onCreate, onHome }: { onCreate: () => void; onHome: () => void
     <header className="site-masthead">
       <div className="masthead-inner">
         <button className="brand-lockup" onClick={onHome}>
-          <strong>Brew Library</strong>
+          <strong>Bloom</strong>
         </button>
         <nav className="site-nav" aria-label="Primary navigation">
           <button className="ghost-button" onClick={onHome}>Library</button>
@@ -778,32 +828,19 @@ function Library({
 }) {
   return (
     <>
-      <section className="hero-band">
-        <div className="hero-grid">
-          <div className="hero-copy">
-            <div>
-              <p className="eyebrow">Brew recipe library</p>
-              <h1 className="journal-title">
-                Brew coffee, log your favorite recipes, and share with everyone.
-              </h1>
-            </div>
-            <p className="hero-dek">
-              A shared space to write coffee recipes.
-            </p>
-            <div className="flex flex-wrap gap-3">
-              <button className="primary-button" onClick={onCreate}>
-                Write a recipe
-              </button>
-              <a className="secondary-button" href="#library">
-                Browse library
-              </a>
-            </div>
-          </div>
-          <FeaturedSheet recipe={recipes[0] ?? seedRecipes[0]} />
+      <section className="bloom-hero">
+        <div>
+          <p className="eyebrow">Brew recipe library</p>
+          <h1 className="bloom-hero-title">
+            Brew, log, and share your favorite coffee recipes.
+          </h1>
         </div>
+        <button className="primary-button" onClick={onCreate}>
+          Write a recipe
+        </button>
       </section>
 
-      <section id="library" className="mx-auto max-w-7xl px-5 py-10 sm:px-8">
+      <section id="library" className="mx-auto max-w-7xl px-5 pb-12 sm:px-8">
         <div className="section-heading">
           <div>
             <h2>Library</h2>
@@ -857,6 +894,109 @@ function FeaturedSheet({ recipe }: { recipe: Recipe }) {
   );
 }
 
+// One accent color per brewer, used for the card's left edge and brewer label.
+const brewerAccent: Record<string, string> = {
+  "V60": "#c65f3f",
+  "French Press": "#7a5230",
+  "AeroPress": "#5f7d8c",
+  "SIF": "#6f8a5b",
+  "Origami Dripper": "#c07aa0",
+  "Kalita Wave": "#c99a3c",
+  "Cafec Deep 27": "#4f8a7b",
+  "Other - Conical": "#8a7bb0",
+  "Other - Flatbed": "#9a8a4a",
+  "Other - Immersion": "#8a6f5a",
+};
+
+function accentForBrewer(brewer: string) {
+  return brewerAccent[brewer] ?? "var(--teal)";
+}
+
+function displayCreator(creator: string) {
+  return creator.trim().replace(/^by\s+/i, "");
+}
+
+function BrewerIcon({ brewer }: { brewer: string }) {
+  const common = {
+    className: "brewer-icon",
+    width: 26,
+    height: 26,
+    fill: "none",
+    stroke: "currentColor",
+    strokeLinejoin: "round" as const,
+    strokeLinecap: "round" as const,
+    "aria-hidden": true,
+  };
+
+  switch (brewer) {
+    case "V60":
+      return (
+        <svg {...common} viewBox="0 0 24 24" strokeWidth={1.7}>
+          <path d="M6 8h12l-6 10z" />
+        </svg>
+      );
+    case "Cafec Deep 27":
+      return (
+        <svg {...common} viewBox="0 0 24 24" strokeWidth={1.7}>
+          <path d="M7 7h10l-5 13z" />
+        </svg>
+      );
+    case "Origami Dripper":
+      return (
+        <svg {...common} viewBox="0 0 32 32" strokeWidth={1.5}>
+          <path d="M5 9l3 2 3-2 3 2 3-2 3 2 3-2 3 2" />
+          <path d="M5 9l8 13h6l8-13" />
+          <path d="M11 11l3 11M21 11l-3 11M16 11v11" />
+        </svg>
+      );
+    case "Kalita Wave":
+      return (
+        <svg {...common} viewBox="0 0 32 32" strokeWidth={1.6}>
+          <path d="M6 10h20l-3.5 11h-13z" />
+          <path d="M11.5 21q1.3 1.4 2.6 0t2.6 0 2.6 0" />
+        </svg>
+      );
+    case "French Press":
+      return (
+        <svg {...common} viewBox="0 0 32 32" strokeWidth={1.6}>
+          <rect x="9" y="10" width="12" height="16" rx="2" />
+          <path d="M8 9.5h14" />
+          <path d="M15 9.5V4" />
+          <circle cx="15" cy="3.4" r="1.5" />
+          <path d="M9 6.5l-2-1v3" />
+          <path d="M21 14q4 0 4 4t-4 4" />
+        </svg>
+      );
+    case "AeroPress":
+      return (
+        <svg {...common} viewBox="0 0 32 32" strokeWidth={1.5}>
+          <rect x="9.5" y="4" width="13" height="2.6" rx="1.2" />
+          <rect x="12" y="6.6" width="8" height="6.4" rx="0.8" />
+          <path d="M10.5 13h11v8.5l-1 2.6h-9l-1-2.6z" />
+          <path d="M10.5 13q5.5-1.6 11 0" />
+        </svg>
+      );
+    case "SIF":
+      return (
+        <svg {...common} viewBox="0 0 32 32" strokeWidth={1.6}>
+          <path d="M11 16h10v8a2 2 0 0 1-2 2h-6a2 2 0 0 1-2-2z" />
+          <rect x="11" y="10" width="10" height="6" />
+          <path d="M11 10q5-4 10 0" />
+          <path d="M16 7V5" />
+          <circle cx="16" cy="4" r="1.1" />
+        </svg>
+      );
+    default:
+      // Other - Conical / Flatbed / Immersion, and any unknown brewer.
+      return (
+        <svg {...common} viewBox="0 0 32 32" strokeWidth={1.6}>
+          <path d="M9 10h11v10a4 4 0 0 1-4 4h-3a4 4 0 0 1-4-4z" />
+          <path d="M20 12q4 0 4 3.5t-4 3.5" />
+        </svg>
+      );
+  }
+}
+
 function RecipeCard({
   recipe,
   onOpen,
@@ -871,32 +1011,42 @@ function RecipeCard({
     }
   }
 
+  const author = displayCreator(recipe.creator);
+  const accent = accentForBrewer(recipe.brewer);
+
   return (
     <article
       className="recipe-card"
+      style={{ ["--accent" as string]: accent } as CSSProperties}
       role="button"
       tabIndex={0}
       onClick={onOpen}
       onKeyDown={handleCardKeyDown}
     >
-      <div>
+      <BrewerIcon brewer={recipe.brewer} />
+      <div className="rc-body">
         <div className="card-meta">
           <span>{recipe.brewer}</span>
           {recipe.ratio ? <span>{ratioLabel(recipe.ratio)}</span> : null}
         </div>
         <h3>{recipeTitle(recipe)}</h3>
-        {recipe.bean.trim() ? <p>{recipe.bean}</p> : null}
+        {recipe.bean.trim() ? <p className="rc-bean">{recipe.bean}</p> : null}
       </div>
       <div className="recipe-stats">
-        {recipe.dose ? <span>{recipe.dose}g coffee</span> : null}
-        {recipe.water ? <span>{recipe.water}g water</span> : null}
-        <span>{formatTime(totalTime(recipe.timeline))}</span>
+        <div>
+          <span>Dose</span>
+          <strong>{recipe.dose ? `${recipe.dose}g` : "—"}</strong>
+        </div>
+        <div>
+          <span>Water</span>
+          <strong>{recipe.water ? `${recipe.water}g` : "—"}</strong>
+        </div>
+        <div>
+          <span>Time</span>
+          <strong>{formatTime(totalTime(recipe.timeline))}</strong>
+        </div>
       </div>
-      {recipe.creator.trim() ? (
-        <p className="creator-line">
-          by {recipe.creator}
-        </p>
-      ) : null}
+      {author ? <p className="creator-line">by {author}</p> : null}
     </article>
   );
 }
@@ -992,14 +1142,6 @@ function Builder({
     });
   }
 
-  function toggleRoast(roast: Roast) {
-    const currentRoasts = normalizeRoast(draft.roast);
-    const nextRoasts = currentRoasts.includes(roast)
-      ? currentRoasts.filter((item) => item !== roast)
-      : [...currentRoasts, roast];
-    setField("roast", nextRoasts);
-  }
-
   function updateEvent(index: number, patch: Partial<TimelineEvent>) {
     onDraft({
       ...draft,
@@ -1059,146 +1201,169 @@ function Builder({
 
         {publishMessage ? <p className="notice">{publishMessage}</p> : null}
 
-        <div className="form-grid">
-          <label className="wide">
-            Recipe title
-            <input
-              value={draft.title}
-              onChange={(event) => setField("title", event.target.value)}
-              placeholder={defaultRecipeTitle(draft)}
-            />
-          </label>
-          <label>
-            Brewer
-            <select
-              value={draft.brewer}
-              onChange={(event) => setField("brewer", event.target.value as Brewer)}
-            >
-              {brewers.map((brewer) => (
-                <option key={brewer}>{brewer}</option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Dose (g)
-            <input
-              type="number"
-              value={numberInputValue(draft.dose)}
-              placeholder="0"
-              onChange={(event) => updateDose(event.target.value)}
-            />
-          </label>
-          <label>
-            Ratio
-            <input
-              type="number"
-              step="0.1"
-              value={numberInputValue(draft.ratio)}
-              placeholder="0"
-              onChange={(event) => updateRatio(event.target.value)}
-            />
-          </label>
-          <label>
-            Water (g)
-            <input
-              type="number"
-              value={numberInputValue(draft.water)}
-              placeholder="0"
-              onChange={(event) => updateWater(event.target.value)}
-            />
-          </label>
-          <label>
-            Temperature (°C)
-            <input
-              type="number"
-              value={numberInputValue(draft.temp)}
-              placeholder="0"
-              onChange={(event) => setNumberField("temp", event.target.value)}
-            />
-          </label>
-          <div className="field-block wide">
-            <span className="field-label">Roast level</span>
-            <div className="choice-group" role="group" aria-label="Roast level">
-              {roastLevels.map((roast) => (
-                <label
-                  className={`choice-chip ${draft.roast.includes(roast) ? "is-selected" : ""}`}
-                  key={roast}
+        <div className="builder-form">
+          {/* Row 1 — Title + Brewer */}
+          <div className="form-row cols-title">
+            <label>
+              Recipe title
+              <input
+                value={draft.title}
+                onChange={(event) => setField("title", event.target.value)}
+                placeholder={defaultRecipeTitle(draft)}
+              />
+            </label>
+            <label>
+              Brewer
+              <select
+                value={draft.brewer}
+                onChange={(event) => setField("brewer", event.target.value as Brewer)}
+              >
+                {brewers.map((brewer) => (
+                  <option key={brewer}>{brewer}</option>
+                ))}
+              </select>
+            </label>
+          </div>
+
+          {/* Row 2 — Dose + Ratio + Water + Grind settings */}
+          <div className="form-row cols-brew">
+            <label>
+              Dose (g)
+              <input
+                type="number"
+                value={numberInputValue(draft.dose)}
+                placeholder="0"
+                onChange={(event) => updateDose(event.target.value)}
+              />
+            </label>
+            <label>
+              Ratio
+              <input
+                type="number"
+                step="0.1"
+                value={numberInputValue(draft.ratio)}
+                placeholder="0"
+                onChange={(event) => updateRatio(event.target.value)}
+              />
+            </label>
+            <label>
+              Water (g)
+              <input
+                type="number"
+                value={numberInputValue(draft.water)}
+                placeholder="0"
+                onChange={(event) => updateWater(event.target.value)}
+              />
+            </label>
+            <div className="field-block">
+              <span className="field-label">Grind settings</span>
+              <div className="grind-stack">
+                <select
+                  value={draft.grind}
+                  onChange={(event) => setField("grind", event.target.value as Grind)}
                 >
-                  <input
-                    type="checkbox"
-                    checked={draft.roast.includes(roast)}
-                    onChange={() => toggleRoast(roast)}
-                  />
-                  <span>{roast}</span>
-                </label>
-              ))}
+                  {["Fine", "Medium-Fine", "Medium", "Medium-Coarse", "Coarse"].map((grind) => (
+                    <option key={grind}>{grind}</option>
+                  ))}
+                </select>
+                <input
+                  value={draft.grinder}
+                  placeholder="Grinder & setting — e.g. Fellow Ode Gen 2 · 5"
+                  onChange={(event) => setField("grinder", event.target.value)}
+                />
+              </div>
             </div>
           </div>
-          <label>
-            Grind
-            <select value={draft.grind} onChange={(event) => setField("grind", event.target.value as Grind)}>
-              {["Fine", "Medium-Fine", "Medium", "Medium-Coarse", "Coarse"].map((grind) => (
-                <option key={grind}>{grind}</option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Grinder
-            <input value={draft.grinder} onChange={(event) => setField("grinder", event.target.value)} />
-          </label>
-          <label>
-            Clicks / setting
-            <input value={draft.clicks} onChange={(event) => setField("clicks", event.target.value)} />
-          </label>
-          <label>
-            Agitation
-            <select
-              value={draft.agitation}
-              onChange={(event) => setField("agitation", event.target.value as Agitation)}
-            >
-              {["Gentle", "Moderate", "Vigorous"].map((value) => (
-                <option key={value}>{value}</option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Pours
-            <input
-              type="number"
-              value={numberInputValue(draft.pours)}
-              placeholder="0"
-              onChange={(event) => setNumberField("pours", event.target.value)}
-            />
-          </label>
-          <label>
-            Stirs
-            <input
-              type="number"
-              value={numberInputValue(draft.stirs)}
-              placeholder="0"
-              onChange={(event) => setNumberField("stirs", event.target.value)}
-            />
-          </label>
-          <label className="checkbox-label">
-            <input
-              type="checkbox"
-              checked={draft.swirl}
-              onChange={(event) => setField("swirl", event.target.checked)}
-            />
-            Swirl
-          </label>
-          <label className="wide">
-            Bean notes
-            <input value={draft.bean} onChange={(event) => setField("bean", event.target.value)} />
-          </label>
-          <label>
-            Your name
-            <input
-              value={draft.creator}
-              onChange={(event) => setField("creator", event.target.value)}
-              placeholder="Shown as recipe author"
-            />
-          </label>
+
+          {/* Row 3 — Temperature + Roast level */}
+          <div className="form-row cols-2">
+            <label>
+              Temperature (°C)
+              <input
+                type="number"
+                value={numberInputValue(draft.temp)}
+                placeholder="0"
+                onChange={(event) => setNumberField("temp", event.target.value)}
+              />
+            </label>
+            <label>
+              Roast level
+              <select
+                value={draft.roast[0] ?? ""}
+                onChange={(event) =>
+                  setField("roast", event.target.value ? [event.target.value as Roast] : [])
+                }
+              >
+                <option value="">Select roast</option>
+                {roastLevels.map((roast) => (
+                  <option key={roast} value={roast}>
+                    {roast}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+
+          {/* Row 4 — Agitation + Pours + Stirs + Swirl */}
+          <div className="form-row cols-4">
+            <label>
+              Agitation
+              <select
+                value={draft.agitation}
+                onChange={(event) => setField("agitation", event.target.value as Agitation)}
+              >
+                {["Gentle", "Moderate", "Vigorous"].map((value) => (
+                  <option key={value}>{value}</option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Pours
+              <input
+                type="number"
+                value={numberInputValue(draft.pours)}
+                placeholder="0"
+                onChange={(event) => setNumberField("pours", event.target.value)}
+              />
+            </label>
+            <label>
+              Stirs
+              <input
+                type="number"
+                value={numberInputValue(draft.stirs)}
+                placeholder="0"
+                onChange={(event) => setNumberField("stirs", event.target.value)}
+              />
+            </label>
+            <label className="checkbox-label swirl-cell">
+              <input
+                type="checkbox"
+                checked={draft.swirl}
+                onChange={(event) => setField("swirl", event.target.checked)}
+              />
+              Swirl
+            </label>
+          </div>
+
+          {/* Row 5 — Notes + Your name */}
+          <div className="form-row cols-notes">
+            <label>
+              Notes
+              <input
+                value={draft.bean}
+                placeholder="Tasting notes, technique, verdict…"
+                onChange={(event) => setField("bean", event.target.value)}
+              />
+            </label>
+            <label>
+              Your name
+              <input
+                value={draft.creator}
+                onChange={(event) => setField("creator", event.target.value)}
+                placeholder="Shown as recipe author"
+              />
+            </label>
+          </div>
         </div>
 
         <div className="timeline-editor">
@@ -1255,14 +1420,6 @@ function Builder({
                   value={step.target}
                   onChange={(event) => updateEvent(index, { target: event.target.value })}
                 />
-              </label>
-              <label className="checkbox-label">
-                <input
-                  type="checkbox"
-                  checked={step.tare}
-                  onChange={(event) => updateEvent(index, { tare: event.target.checked })}
-                />
-                Tare
               </label>
               <label className="checkbox-label">
                 <input
