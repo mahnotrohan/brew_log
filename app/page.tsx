@@ -836,7 +836,7 @@ function Library({
           </h1>
         </div>
         <button className="primary-button" onClick={onCreate}>
-          Write a recipe
+          Write recipe
         </button>
       </section>
 
@@ -1072,7 +1072,7 @@ function CreatorProfile({
           <span>{new Set(recipes.map((recipe) => recipe.brewer)).size} brewers</span>
         </div>
         <button className="primary-button" onClick={onCreate}>
-          Write a recipe
+          Write recipe
         </button>
       </div>
 
