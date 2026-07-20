@@ -870,6 +870,7 @@ export default function Home() {
   const [search, setSearch] = useState("");
   const [brewerFilter, setBrewerFilter] = useState("All brewers");
   const [publishMessage, setPublishMessage] = useState("");
+  const [justPublishedId, setJustPublishedId] = useState("");
 
   useEffect(() => {
     const hydrateStorage = window.setTimeout(() => {
@@ -969,6 +970,7 @@ export default function Home() {
     setRecipes((items) => [recipe, ...items]);
     void saveServerRecipe(recipe);
     setPublishMessage(`Published as /${recipe.creator}/${recipe.id}.`);
+    setJustPublishedId(recipe.id);
     go("recipe", recipe.id);
   }
 
@@ -994,7 +996,12 @@ export default function Home() {
           onBack={() => go("recipe", activeRecipe.id)}
         />
       ) : view === "recipe" ? (
-        <RecipePage recipe={activeRecipe} onShare={() => go("share", activeRecipe.id)} />
+        <RecipePage
+          recipe={activeRecipe}
+          onShare={() => go("share", activeRecipe.id)}
+          sharePrompt={justPublishedId === activeRecipe.id}
+          onDismissPrompt={() => setJustPublishedId("")}
+        />
       ) : view === "creator" ? (
         <CreatorProfile
           username={activeId}
@@ -1815,9 +1822,35 @@ function Builder({
   );
 }
 
-function RecipePage({ recipe, onShare }: { recipe: Recipe; onShare: () => void }) {
+function RecipePage({
+  recipe,
+  onShare,
+  sharePrompt = false,
+  onDismissPrompt,
+}: {
+  recipe: Recipe;
+  onShare: () => void;
+  sharePrompt?: boolean;
+  onDismissPrompt?: () => void;
+}) {
   return (
     <section className="recipe-page print-page">
+      {sharePrompt ? (
+        <div className="publish-banner">
+          <div>
+            <strong>Published!</strong>
+            <span> Your recipe is live in the library.</span>
+          </div>
+          <div className="publish-banner-actions">
+            <button className="primary-button" onClick={onShare}>
+              Share your brew
+            </button>
+            <button className="ghost-button" onClick={onDismissPrompt}>
+              Dismiss
+            </button>
+          </div>
+        </div>
+      ) : null}
       <div className="recipe-actions">
         <div>
           <p className="eyebrow share-path">/{slugify(recipe.creator) || "guest"}/{recipe.id}</p>
