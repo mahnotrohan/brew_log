@@ -871,6 +871,7 @@ export default function Home() {
   const [brewerFilter, setBrewerFilter] = useState("All brewers");
   const [publishMessage, setPublishMessage] = useState("");
   const [justPublishedId, setJustPublishedId] = useState("");
+  const [shareId, setShareId] = useState("");
 
   useEffect(() => {
     const hydrateStorage = window.setTimeout(() => {
@@ -990,15 +991,10 @@ export default function Home() {
           onPublish={publishRecipe}
           publishMessage={publishMessage}
         />
-      ) : view === "share" ? (
-        <ShareComposer
-          recipe={activeRecipe}
-          onBack={() => go("recipe", activeRecipe.id)}
-        />
       ) : view === "recipe" ? (
         <RecipePage
           recipe={activeRecipe}
-          onShare={() => go("share", activeRecipe.id)}
+          onShare={() => setShareId(activeRecipe.id)}
           sharePrompt={justPublishedId === activeRecipe.id}
           onDismissPrompt={() => setJustPublishedId("")}
         />
@@ -1020,6 +1016,12 @@ export default function Home() {
           onCreate={startNewRecipe}
         />
       )}
+      {shareId ? (
+        <ShareSheet
+          recipe={recipes.find((r) => r.id === shareId) ?? activeRecipe}
+          onClose={() => setShareId("")}
+        />
+      ) : null}
     </main>
   );
 }
@@ -1859,9 +1861,6 @@ function RecipePage({
           <button className="primary-button" onClick={onShare}>
             Share
           </button>
-          <button className="secondary-button" onClick={() => window.print()}>
-            Print
-          </button>
         </div>
       </div>
       <div className="public-recipe">
@@ -1878,7 +1877,7 @@ const shareStyles: { key: ShareStyle; label: string }[] = [
   { key: "type", label: "Big type" },
 ];
 
-function ShareComposer({ recipe, onBack }: { recipe: Recipe; onBack: () => void }) {
+function ShareSheet({ recipe, onClose }: { recipe: Recipe; onClose: () => void }) {
   const [photo, setPhoto] = useState<HTMLImageElement | null>(null);
   const [style, setStyle] = useState<ShareStyle>("bar");
   const [format, setFormat] = useState<ShareFormat>("story");
@@ -1909,6 +1908,15 @@ function ShareComposer({ recipe, onBack }: { recipe: Recipe; onBack: () => void 
     };
   }, [recipe, photo, style, format]);
 
+  // Close on Escape.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
   function onPickPhoto(e: ReactChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -1929,71 +1937,80 @@ function ShareComposer({ recipe, onBack }: { recipe: Recipe; onBack: () => void 
   }
 
   return (
-    <section className="share-composer mx-auto px-5 sm:px-8">
-      <div className="composer-head">
-        <button className="ghost-button" onClick={onBack}>
-          ← Back
-        </button>
-        <p className="field-label" style={{ margin: 0 }}>
-          Share this recipe
-        </p>
-      </div>
-
-      <div className={format === "square" && photo ? "composer-preview square" : "composer-preview"}>
-        {previewUrl ? <img src={previewUrl} alt="Share preview" /> : <div className="composer-loading">Preparing…</div>}
-      </div>
-
-      <div className="composer-controls">
-        <label className="secondary-button photo-pick">
-          {photo ? "Change photo" : "＋ Add photo"}
-          <input type="file" accept="image/*" onChange={onPickPhoto} hidden />
-        </label>
-        {photo ? (
-          <button className="ghost-button" onClick={() => setPhoto(null)}>
-            Remove photo
+    <div className="sheet-backdrop" onClick={onClose}>
+      <div
+        className="share-sheet"
+        role="dialog"
+        aria-label="Share this recipe"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="sheet-head">
+          <span className="sheet-title">Share your brew</span>
+          <button className="sheet-close" onClick={onClose} aria-label="Close">
+            ✕
           </button>
-        ) : null}
-      </div>
+        </div>
 
-      {photo ? (
-        <>
-          <div className="composer-controls">
-            {shareStyles.map(({ key, label }) => (
+        <div className={format === "square" && photo ? "sheet-preview square" : "sheet-preview"}>
+          {previewUrl ? (
+            <img src={previewUrl} alt="Share preview" />
+          ) : (
+            <div className="composer-loading">Preparing…</div>
+          )}
+          {!photo ? (
+            <label className="preview-add">
+              <span className="preview-add-ic">＋</span>
+              <span>Add your photo</span>
+              <input type="file" accept="image/*" onChange={onPickPhoto} hidden />
+            </label>
+          ) : null}
+        </div>
+
+        {photo ? (
+          <>
+            <div className="sheet-controls">
+              {shareStyles.map(({ key, label }) => (
+                <button
+                  key={key}
+                  className={style === key ? "style-chip is-active" : "style-chip"}
+                  onClick={() => setStyle(key)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <div className="sheet-controls">
               <button
-                key={key}
-                className={style === key ? "style-chip is-active" : "style-chip"}
-                onClick={() => setStyle(key)}
+                className={format === "story" ? "style-chip is-active" : "style-chip"}
+                onClick={() => setFormat("story")}
               >
-                {label}
+                9:16
               </button>
-            ))}
-          </div>
-          <div className="composer-controls">
-            <button
-              className={format === "story" ? "style-chip is-active" : "style-chip"}
-              onClick={() => setFormat("story")}
-            >
-              9:16 story
-            </button>
-            <button
-              className={format === "square" ? "style-chip is-active" : "style-chip"}
-              onClick={() => setFormat("square")}
-            >
-              1:1 square
-            </button>
-          </div>
-        </>
-      ) : (
-        <p className="composer-hint">
-          Add a photo of your brew for a Strava-style share — or share the clean recipe card as is.
-        </p>
-      )}
+              <button
+                className={format === "square" ? "style-chip is-active" : "style-chip"}
+                onClick={() => setFormat("square")}
+              >
+                1:1
+              </button>
+              <label className="style-chip photo-pick">
+                Change
+                <input type="file" accept="image/*" onChange={onPickPhoto} hidden />
+              </label>
+              <button className="style-chip" onClick={() => setPhoto(null)}>
+                Remove
+              </button>
+            </div>
+          </>
+        ) : (
+          <p className="composer-hint">Tap the preview to add a photo of your brew — or share the clean card as is.</p>
+        )}
 
-      <button className="primary-button composer-share" disabled={isSharing} onClick={handleShare}>
-        {isSharing ? "Preparing…" : "Share"}
-      </button>
-      <p className="composer-privacy">Your photo stays on your device — it&rsquo;s never uploaded.</p>
-    </section>
+        <button className="primary-button sheet-share" disabled={isSharing} onClick={handleShare}>
+          {isSharing ? "Preparing…" : "Share"}
+        </button>
+        <p className="composer-privacy">Your photo stays on your device — never uploaded.</p>
+      </div>
+    </div>
   );
 }
 
