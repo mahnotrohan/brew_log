@@ -82,6 +82,9 @@ const brewers: Brewer[] = [
   "Other - Immersion",
 ];
 
+// The specific brewers the builder offers by name; anything else is typed free.
+const namedBrewers: Brewer[] = brewers.filter((b) => !b.startsWith("Other"));
+
 const roastLevels: Roast[] = ["Light", "Medium-Light", "Medium", "Medium-Dark", "Dark"];
 
 const eventTypes = [
@@ -761,8 +764,14 @@ export default function Home() {
 
   return (
     <main className="min-h-screen bg-[var(--oat)] text-[var(--ink)]">
-      <Header onCreate={startNewRecipe} onHome={() => go("home")} />
-      {view === "builder" ? (
+      <Header
+        onCreate={startNewRecipe}
+        onHome={() => go("home")}
+        onAbout={() => go("about")}
+      />
+      {view === "about" ? (
+        <AboutPage onCreate={startNewRecipe} onBrowse={() => go("home")} />
+      ) : view === "builder" ? (
         <Builder
           draft={draft}
           onDraft={setDraft}
@@ -793,7 +802,15 @@ export default function Home() {
   );
 }
 
-function Header({ onCreate, onHome }: { onCreate: () => void; onHome: () => void }) {
+function Header({
+  onCreate,
+  onHome,
+  onAbout,
+}: {
+  onCreate: () => void;
+  onHome: () => void;
+  onAbout: () => void;
+}) {
   return (
     <header className="site-masthead">
       <div className="masthead-inner">
@@ -801,11 +818,63 @@ function Header({ onCreate, onHome }: { onCreate: () => void; onHome: () => void
           <strong>Bloom</strong>
         </button>
         <nav className="site-nav" aria-label="Primary navigation">
-          <button className="ghost-button" onClick={onHome}>Library</button>
+          <button className="ghost-button" onClick={onAbout}>How to use</button>
           <button className="primary-button" onClick={onCreate}>Write recipe</button>
         </nav>
       </div>
     </header>
+  );
+}
+
+function AboutPage({ onCreate, onBrowse }: { onCreate: () => void; onBrowse: () => void }) {
+  return (
+    <section className="about-page mx-auto px-5 sm:px-8">
+      <p className="eyebrow">How to use</p>
+      <h1 className="about-title">A simple place to log and share coffee recipes.</h1>
+      <p className="about-lead">
+        Bloom is a shared library for pour-over, immersion, and AeroPress recipes — from your own
+        morning cup to the routines that won world championships. No account, no clutter: write it
+        the way you&rsquo;d say it, and it shows up for everyone.
+      </p>
+
+      <div className="about-block">
+        <h2>Reading a recipe</h2>
+        <p>
+          Every card leads with the essentials — brewer, ratio, and the coffee / water / time at a
+          glance. A colored edge and small icon tell you the brew method instantly (a V60 cone, a
+          French press, an AeroPress, and so on). Open a recipe to see the full pour timeline laid
+          out step by step.
+        </p>
+      </div>
+
+      <div className="about-block">
+        <h2>Writing your own</h2>
+        <p>
+          Tap <strong>Write recipe</strong> and you only need four things: a title, the brewer, and
+          how much coffee and water you use. Everything else is optional — tap the little
+          &ldquo;+&rdquo; chips to add temperature, grind, roast, or anything you care about, and
+          leave the rest off.
+        </p>
+        <p>
+          Pour steps are optional too. Each one reads like a sentence: <em>&ldquo;at 0:40, pour to
+          150 g.&rdquo;</em> Pick <em>Drawdown</em> or <em>Wait</em> for a pause, add a note if you
+          like, and skip the timeline entirely if you just want to jot the basics.
+        </p>
+      </div>
+
+      <div className="about-block">
+        <h2>It syncs everywhere</h2>
+        <p>
+          Publish once and your recipe is saved to the shared library, so it appears on every device
+          and for anyone who visits — no sign-in required.
+        </p>
+      </div>
+
+      <div className="about-cta">
+        <button className="primary-button" onClick={onCreate}>Write a recipe</button>
+        <button className="secondary-button" onClick={onBrowse}>Browse the library</button>
+      </div>
+    </section>
   );
 }
 
@@ -1238,12 +1307,13 @@ function Builder({
   function updateEventType(index: number, type: string) {
     const step = draft.timeline[index];
     const previousEnd = previousTimelineEnd(draft.timeline, index);
-    const patch: Partial<TimelineEvent> = { type };
+    // "range" (a time window) is implied by the step type, not a user toggle.
+    const isRange = type === "Drawdown" || type === "Wait";
+    const patch: Partial<TimelineEvent> = { type, range: isRange };
 
     if (type === "Drawdown") {
       patch.start = previousEnd;
       patch.duration = Math.max(step.duration, previousEnd + 60);
-      patch.range = true;
     }
 
     updateEvent(index, patch);
@@ -1296,11 +1366,30 @@ function Builder({
       <div className="essentials">
         <label>
           Brewer
-          <select value={draft.brewer} onChange={(e) => setField("brewer", e.target.value as Brewer)}>
-            {brewers.map((b) => (
+          <select
+            value={namedBrewers.includes(draft.brewer) ? draft.brewer : "Other"}
+            onChange={(e) => {
+              const v = e.target.value;
+              if (v === "Other") {
+                if (namedBrewers.includes(draft.brewer)) setField("brewer", "" as Brewer);
+              } else {
+                setField("brewer", v as Brewer);
+              }
+            }}
+          >
+            {namedBrewers.map((b) => (
               <option key={b}>{b}</option>
             ))}
+            <option value="Other">Other…</option>
           </select>
+          {!namedBrewers.includes(draft.brewer) ? (
+            <input
+              className="brewer-custom"
+              value={draft.brewer}
+              placeholder="Name your brewer — e.g. Orea, SOLO, Chemex"
+              onChange={(e) => setField("brewer", e.target.value as Brewer)}
+            />
+          ) : null}
         </label>
         <label>
           Coffee (g)
@@ -1480,26 +1569,13 @@ function Builder({
                   placeholder="note (optional)"
                   onChange={(e) => updateEvent(index, { note: e.target.value })}
                 />
-                <details className="step-more">
-                  <summary aria-label="More options">&#8943;</summary>
-                  <div className="step-adv">
-                    <label>
-                      Duration (s)
-                      <input
-                        type="number"
-                        value={numberInputValue(step.duration)}
-                        onChange={(e) => updateEvent(index, { duration: readNumberInput(e.target.value) })}
-                      />
-                    </label>
-                    <label className="checkbox-label">
-                      <input type="checkbox" checked={step.range} onChange={(e) => updateEvent(index, { range: e.target.checked })} />
-                      Time range
-                    </label>
-                    <button className="ghost-button" onClick={() => removeEvent(index)}>
-                      Remove step
-                    </button>
-                  </div>
-                </details>
+                <button
+                  className="step-remove"
+                  onClick={() => removeEvent(index)}
+                  aria-label="Remove step"
+                >
+                  ✕
+                </button>
               </div>
             );
           })
@@ -1576,6 +1652,7 @@ function RecipeHeader({ recipe, compact = false }: { recipe: Recipe; compact?: b
         {recipe.bean.trim() ? <p className="bean-line">{recipe.bean}</p> : null}
       </div>
       <div className="header-metrics">
+        <Metric label="Brewer" value={recipe.brewer} small />
         {recipe.dose ? <Metric label="Dose" value={`${recipe.dose}g`} /> : null}
         {recipe.ratio ? <Metric label="Ratio" value={ratioLabel(recipe.ratio)} /> : null}
         {recipe.water ? <Metric label="Water" value={`${recipe.water}g`} /> : null}
@@ -1593,9 +1670,17 @@ function RecipeHeader({ recipe, compact = false }: { recipe: Recipe; compact?: b
   );
 }
 
-function Metric({ label, value }: { label: string; value: string }) {
+function Metric({
+  label,
+  value,
+  small = false,
+}: {
+  label: string;
+  value: string;
+  small?: boolean;
+}) {
   return (
-    <div>
+    <div className={small ? "metric-small" : undefined}>
       <span>{label}</span>
       <strong>{value}</strong>
     </div>

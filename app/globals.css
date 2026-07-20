@@ -2168,12 +2168,19 @@ select {
 .step-target {
   height: 36px;
   min-height: 36px;
-  width: 62px;
-  padding: 0 10px;
+  padding: 0 8px;
   border-radius: 9px;
   text-align: center;
   font-size: 0.86rem;
   font-weight: 600;
+}
+
+.step-time {
+  width: 84px;
+}
+
+.step-target {
+  width: 74px;
 }
 
 .step-note {
@@ -2181,48 +2188,81 @@ select {
   min-width: 150px;
 }
 
-.step-more {
+.step-remove {
   margin-left: auto;
-}
-
-.step-more > summary {
-  list-style: none;
-  cursor: pointer;
-  border: 1px solid var(--rule-2);
-  border-radius: 999px;
-  padding: 7px 13px;
-  font-weight: 700;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
   color: var(--ink-2);
+  font-size: 0.85rem;
   line-height: 1;
+  flex: 0 0 auto;
 }
 
-.step-more > summary::-webkit-details-marker {
-  display: none;
+.step-remove:hover {
+  background: rgba(200, 95, 63, 0.12);
+  color: #b3542f;
 }
 
-.step-more[open] {
-  margin-left: 0;
-  flex-basis: 100%;
+/* ===== About / How-to page ===== */
+.about-page {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 34px 0 64px;
 }
 
-.step-adv {
+.about-title {
+  font-family: var(--serif);
+  font-size: clamp(1.7rem, 4.2vw, 2.3rem);
+  font-weight: 500;
+  line-height: 1.12;
+  letter-spacing: -0.01em;
+  margin: 8px 0 16px;
+}
+
+.about-lead {
+  font-size: 1.02rem;
+  line-height: 1.6;
+  color: var(--ink);
+  margin: 0 0 8px;
+}
+
+.about-block {
+  border-top: 1px solid var(--rule);
+  margin-top: 26px;
+  padding-top: 20px;
+}
+
+.about-block h2 {
+  font-family: var(--serif);
+  font-size: 1.2rem;
+  font-weight: 600;
+  margin: 0 0 8px;
+}
+
+.about-block p {
+  font-size: 0.95rem;
+  line-height: 1.6;
+  color: var(--ink-2);
+  margin: 0 0 10px;
+}
+
+.about-block p:last-child {
+  margin-bottom: 0;
+}
+
+.about-cta {
   display: flex;
-  align-items: center;
   flex-wrap: wrap;
-  gap: 14px;
-  margin-top: 10px;
-  padding: 12px 14px;
-  background: var(--oat);
-  border-radius: 10px;
+  gap: 12px;
+  margin-top: 30px;
 }
 
-.step-adv label {
-  gap: 6px;
-}
-
-.step-adv .checkbox-label {
-  flex-direction: row;
-  align-items: center;
+/* Brewer metric: smaller so long names (e.g. "Cafec Deep 27") fit the cell. */
+.header-metrics .metric-small strong {
+  font-size: 1.02rem;
+  line-height: 1.15;
+  font-weight: 650;
 }
 
 @media (max-width: 640px) {
