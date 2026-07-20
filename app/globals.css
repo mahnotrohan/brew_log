@@ -13,9 +13,9 @@
   --teal: #486c63;
   --teal-soft: #6f8a84;
   --amber: #d89b45;
-  --serif: var(--font-inter), system-ui, sans-serif;
-  --mono: var(--font-inter), system-ui, sans-serif;
-  --sans: var(--font-inter), system-ui, sans-serif;
+  --serif: var(--font-hanken), system-ui, sans-serif;
+  --mono: var(--font-hanken), system-ui, sans-serif;
+  --sans: var(--font-hanken), system-ui, sans-serif;
   --background: var(--oat);
   --foreground: var(--ink);
 }

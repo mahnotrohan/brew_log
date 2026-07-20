@@ -322,18 +322,18 @@ async function exportRecipeJpeg(recipe: Recipe) {
   context.stroke();
 
   context.fillStyle = "#486c63";
-  context.font = "700 22px Inter, Arial, sans-serif";
+  context.font = "700 22px 'Hanken Grotesk', Arial, sans-serif";
   context.fillText(recipe.brewer.toUpperCase(), 130, 145);
 
   context.fillStyle = "#20201e";
-  context.font = "650 52px Inter, Arial, sans-serif";
+  context.font = "650 52px 'Hanken Grotesk', Arial, sans-serif";
   const titleLines = wrapCanvasText(context, recipeTitle(recipe), 1100).slice(0, 2);
   titleLines.forEach((line, index) => context.fillText(line, 130, 215 + index * 60));
   const titleBottom = 215 + (titleLines.length - 1) * 60;
 
   if (recipe.bean.trim()) {
     context.fillStyle = "#6e6b66";
-    context.font = "400 25px Inter, Arial, sans-serif";
+    context.font = "400 25px 'Hanken Grotesk', Arial, sans-serif";
     context.fillText(recipe.bean, 130, titleBottom + 48);
   }
 
@@ -360,19 +360,19 @@ async function exportRecipeJpeg(recipe: Recipe) {
       context.stroke();
     }
     context.fillStyle = "#6e6b66";
-    context.font = "700 16px Inter, Arial, sans-serif";
+    context.font = "700 16px 'Hanken Grotesk', Arial, sans-serif";
     context.fillText(label, x + 24, metricsTop + 35);
     context.fillStyle = "#20201e";
-    context.font = "650 31px Inter, Arial, sans-serif";
+    context.font = "650 31px 'Hanken Grotesk', Arial, sans-serif";
     context.fillText(value, x + 24, metricsTop + 78);
   });
 
   const timelineTop = metricsTop + 176;
   context.fillStyle = "#20201e";
-  context.font = "650 28px Inter, Arial, sans-serif";
+  context.font = "650 28px 'Hanken Grotesk', Arial, sans-serif";
   context.fillText("Brew timeline", 130, timelineTop);
   context.fillStyle = "#6e6b66";
-  context.font = "400 19px Inter, Arial, sans-serif";
+  context.font = "400 19px 'Hanken Grotesk', Arial, sans-serif";
   context.fillText(`${recipe.timeline.length} steps`, 1150, timelineTop);
 
   const lineX = 158;
@@ -397,13 +397,13 @@ async function exportRecipeJpeg(recipe: Recipe) {
     context.stroke();
 
     context.fillStyle = "#20201e";
-    context.font = "650 25px Inter, Arial, sans-serif";
+    context.font = "650 25px 'Hanken Grotesk', Arial, sans-serif";
     context.fillText(step.type, 205, y + 4);
     context.fillStyle = "#6e6b66";
-    context.font = "600 19px Inter, Arial, sans-serif";
+    context.font = "600 19px 'Hanken Grotesk', Arial, sans-serif";
     context.fillText(readout, 880, y + 3);
     if (step.note.trim()) {
-      context.font = "400 20px Inter, Arial, sans-serif";
+      context.font = "400 20px 'Hanken Grotesk', Arial, sans-serif";
       wrapCanvasText(context, step.note, 920)
         .slice(0, 2)
         .forEach((line, lineIndex) => context.fillText(line, 205, y + 42 + lineIndex * 28));
@@ -411,7 +411,7 @@ async function exportRecipeJpeg(recipe: Recipe) {
   });
 
   context.fillStyle = "#6e6b66";
-  context.font = "500 18px Inter, Arial, sans-serif";
+  context.font = "500 18px 'Hanken Grotesk', Arial, sans-serif";
   context.fillText("Bloom", 130, height - 105);
   if (recipe.creator.trim()) {
     context.textAlign = "right";
