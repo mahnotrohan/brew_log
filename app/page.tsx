@@ -6,6 +6,7 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type ChangeEvent as ReactChangeEvent,
   type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
@@ -299,138 +300,347 @@ function wrapCanvasText(
   return lines;
 }
 
-async function exportRecipeJpeg(recipe: Recipe) {
-  const width = 1400;
-  const stepHeight = 142;
-  const height = 650 + recipe.timeline.length * stepHeight;
+const SHARE_ACCENT_FALLBACK = "#486c63";
+
+// Draws a mobile-first, shareable "story" image (1080x1920) for a recipe.
+async function renderRecipeImage(recipe: Recipe): Promise<Blob> {
+  const W = 1080;
+  const H = 1920;
+  const P = 80;
+  const inner = W - P * 2;
+  const INK = "#20201e";
+  const INK2 = "#6e6b66";
+  const RULE = "#e5ddd2";
+  const accent = brewerAccent[recipe.brewer] ?? SHARE_ACCENT_FALLBACK;
+  const font = (spec: string) => `${spec} 'Hanken Grotesk', Arial, sans-serif`;
+
   const canvas = document.createElement("canvas");
-  canvas.width = width;
-  canvas.height = height;
-  const context = canvas.getContext("2d");
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Canvas is unavailable");
 
-  if (!context) throw new Error("Canvas is unavailable");
+  ctx.fillStyle = "#f7f5f2";
+  ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = accent;
+  ctx.fillRect(0, 0, W, 16);
+  ctx.textAlign = "left";
 
-  context.fillStyle = "#f7f5f2";
-  context.fillRect(0, 0, width, height);
+  let y = P + 46;
 
-  context.fillStyle = "#ffffff";
-  context.beginPath();
-  context.roundRect(70, 70, width - 140, height - 140, 24);
-  context.fill();
-  context.strokeStyle = "#e5ddd2";
-  context.lineWidth = 2;
-  context.stroke();
+  ctx.fillStyle = accent;
+  ctx.font = font("700 30px");
+  ctx.fillText(recipe.brewer.toUpperCase(), P, y);
+  y += 62;
 
-  context.fillStyle = "#486c63";
-  context.font = "700 22px 'Hanken Grotesk', Arial, sans-serif";
-  context.fillText(recipe.brewer.toUpperCase(), 130, 145);
-
-  context.fillStyle = "#20201e";
-  context.font = "650 52px 'Hanken Grotesk', Arial, sans-serif";
-  const titleLines = wrapCanvasText(context, recipeTitle(recipe), 1100).slice(0, 2);
-  titleLines.forEach((line, index) => context.fillText(line, 130, 215 + index * 60));
-  const titleBottom = 215 + (titleLines.length - 1) * 60;
+  ctx.fillStyle = INK;
+  ctx.font = font("700 80px");
+  wrapCanvasText(ctx, recipeTitle(recipe), inner)
+    .slice(0, 3)
+    .forEach((line) => {
+      ctx.fillText(line, P, y);
+      y += 88;
+    });
+  y += 4;
 
   if (recipe.bean.trim()) {
-    context.fillStyle = "#6e6b66";
-    context.font = "400 25px 'Hanken Grotesk', Arial, sans-serif";
-    context.fillText(recipe.bean, 130, titleBottom + 48);
+    ctx.fillStyle = INK2;
+    ctx.font = font("400 34px");
+    wrapCanvasText(ctx, recipe.bean, inner)
+      .slice(0, 2)
+      .forEach((line) => {
+        ctx.fillText(line, P, y);
+        y += 44;
+      });
   }
+  y += 34;
 
-  const metrics = [
+  const metrics: [string, string][] = [
     ["COFFEE", `${recipe.dose}g`],
     ["RATIO", ratioLabel(recipe.ratio)],
     ["WATER", `${recipe.water}g`],
-    ["TEMP", `${recipe.temp}°C`],
-    ["TIME", formatTime(totalTime(recipe.timeline))],
   ];
-  const metricsTop = titleBottom + 92;
-  const metricWidth = 228;
+  if (recipe.temp) metrics.push(["TEMP", `${recipe.temp}°C`]);
+  metrics.push(["TIME", formatTime(totalTime(recipe.timeline))]);
 
-  context.strokeStyle = "#e5ddd2";
-  context.beginPath();
-  context.roundRect(130, metricsTop, 1140, 112, 14);
-  context.stroke();
-  metrics.forEach(([label, value], index) => {
-    const x = 130 + index * metricWidth;
-    if (index) {
-      context.beginPath();
-      context.moveTo(x, metricsTop);
-      context.lineTo(x, metricsTop + 112);
-      context.stroke();
+  const stripH = 152;
+  const cellW = inner / metrics.length;
+  ctx.strokeStyle = RULE;
+  ctx.lineWidth = 2;
+  ctx.strokeRect(P, y, inner, stripH);
+  metrics.forEach(([label, value], i) => {
+    const cx = P + i * cellW;
+    if (i) {
+      ctx.beginPath();
+      ctx.moveTo(cx, y);
+      ctx.lineTo(cx, y + stripH);
+      ctx.stroke();
     }
-    context.fillStyle = "#6e6b66";
-    context.font = "700 16px 'Hanken Grotesk', Arial, sans-serif";
-    context.fillText(label, x + 24, metricsTop + 35);
-    context.fillStyle = "#20201e";
-    context.font = "650 31px 'Hanken Grotesk', Arial, sans-serif";
-    context.fillText(value, x + 24, metricsTop + 78);
+    ctx.fillStyle = INK2;
+    ctx.font = font("700 19px");
+    ctx.fillText(label, cx + 22, y + 46);
+    ctx.fillStyle = INK;
+    ctx.font = font("700 40px");
+    ctx.fillText(value, cx + 22, y + 106);
   });
+  y += stripH + 66;
 
-  const timelineTop = metricsTop + 176;
-  context.fillStyle = "#20201e";
-  context.font = "650 28px 'Hanken Grotesk', Arial, sans-serif";
-  context.fillText("Brew timeline", 130, timelineTop);
-  context.fillStyle = "#6e6b66";
-  context.font = "400 19px 'Hanken Grotesk', Arial, sans-serif";
-  context.fillText(`${recipe.timeline.length} steps`, 1150, timelineTop);
+  if (recipe.timeline.length) {
+    ctx.fillStyle = INK;
+    ctx.font = font("700 36px");
+    ctx.fillText("Brew timeline", P, y);
+    y += 46;
 
-  const lineX = 158;
-  const firstStepY = timelineTop + 70;
-  const lastStepY = firstStepY + Math.max(0, recipe.timeline.length - 1) * stepHeight;
-  context.strokeStyle = "#e5ddd2";
-  context.lineWidth = 4;
-  context.beginPath();
-  context.moveTo(lineX, firstStepY);
-  context.lineTo(lineX, lastStepY);
-  context.stroke();
+    const steps = recipe.timeline;
+    const lineX = P + 18;
+    const availH = H - 210 - y;
+    const stepH = Math.min(196, Math.max(112, availH / Math.max(steps.length, 1)));
+    const firstY = y + 42;
 
-  recipe.timeline.forEach((step, index) => {
-    const y = firstStepY + index * stepHeight;
-    const readout = `${eventWindowLabel(recipe.timeline, index)} · ${timelineScaleLabel(recipe.timeline, index)}`;
-    context.fillStyle = isDrawdownEvent(step) ? "#486c63" : "#d89b45";
-    context.beginPath();
-    context.arc(lineX, y, 13, 0, Math.PI * 2);
-    context.fill();
-    context.strokeStyle = "#ffffff";
-    context.lineWidth = 5;
-    context.stroke();
+    ctx.strokeStyle = RULE;
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(lineX, firstY);
+    ctx.lineTo(lineX, firstY + Math.max(0, steps.length - 1) * stepH);
+    ctx.stroke();
 
-    context.fillStyle = "#20201e";
-    context.font = "650 25px 'Hanken Grotesk', Arial, sans-serif";
-    context.fillText(step.type, 205, y + 4);
-    context.fillStyle = "#6e6b66";
-    context.font = "600 19px 'Hanken Grotesk', Arial, sans-serif";
-    context.fillText(readout, 880, y + 3);
-    if (step.note.trim()) {
-      context.font = "400 20px 'Hanken Grotesk', Arial, sans-serif";
-      wrapCanvasText(context, step.note, 920)
-        .slice(0, 2)
-        .forEach((line, lineIndex) => context.fillText(line, 205, y + 42 + lineIndex * 28));
-    }
-  });
+    steps.forEach((step, i) => {
+      const sy = firstY + i * stepH;
+      const readout = `${eventWindowLabel(steps, i)} · ${timelineScaleLabel(steps, i)}`;
+      ctx.fillStyle = isDrawdownEvent(step) ? accent : "#d89b45";
+      ctx.beginPath();
+      ctx.arc(lineX, sy, 15, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "#f7f5f2";
+      ctx.lineWidth = 6;
+      ctx.stroke();
 
-  context.fillStyle = "#6e6b66";
-  context.font = "500 18px 'Hanken Grotesk', Arial, sans-serif";
-  context.fillText("Bloom", 130, height - 105);
-  if (recipe.creator.trim()) {
-    context.textAlign = "right";
-    context.fillText(`Recipe by ${recipe.creator}`, width - 130, height - 105);
+      ctx.fillStyle = INK;
+      ctx.font = font("700 34px");
+      ctx.fillText(step.type, lineX + 46, sy + 2);
+      ctx.fillStyle = INK2;
+      ctx.font = font("600 27px");
+      ctx.fillText(readout, lineX + 46, sy + 42);
+      if (step.note.trim()) {
+        ctx.font = font("400 26px");
+        wrapCanvasText(ctx, step.note, inner - 70)
+          .slice(0, 1)
+          .forEach((ln) => ctx.fillText(ln, lineX + 46, sy + 80));
+      }
+    });
   }
 
-  const blob = await new Promise<Blob>((resolve, reject) => {
+  ctx.fillStyle = INK;
+  ctx.font = font("700 30px");
+  ctx.textAlign = "left";
+  ctx.fillText("Bloom", P, H - P);
+  ctx.fillStyle = INK2;
+  ctx.font = font("500 23px");
+  ctx.fillText("bloom.rohanmahnot.space", P, H - P + 32);
+  if (recipe.creator.trim()) {
+    ctx.textAlign = "right";
+    ctx.font = font("600 26px");
+    ctx.fillText(`by ${displayCreator(recipe.creator)}`, W - P, H - P);
+  }
+  ctx.textAlign = "left";
+
+  return await new Promise<Blob>((resolve, reject) => {
     canvas.toBlob(
-      (result) => result ? resolve(result) : reject(new Error("JPEG export failed")),
+      (result) => (result ? resolve(result) : reject(new Error("Image export failed"))),
       "image/jpeg",
-      0.94,
+      0.95,
     );
   });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = `${slugify(recipeTitle(recipe)) || "brew-recipe"}.jpeg`;
-  link.click();
-  URL.revokeObjectURL(url);
+}
+
+// Mobile: opens the native share sheet with the image (and a link back).
+// Desktop / unsupported: downloads the image.
+async function shareRecipeImage(recipe: Recipe, preRendered?: Blob | null) {
+  // Use a pre-rendered image when available so navigator.share() runs inside
+  // the click gesture (desktop drops user-activation across an await).
+  const blob = preRendered ?? (await renderRecipeImage(recipe));
+  const filename = `${slugify(recipeTitle(recipe)) || "brew-recipe"}.jpg`;
+  const link =
+    typeof window !== "undefined"
+      ? `${window.location.origin}/#/recipe/${recipe.id}`
+      : "";
+  const file = new File([blob], filename, { type: "image/jpeg" });
+  const nav = navigator as Navigator & {
+    canShare?: (data?: ShareData) => boolean;
+  };
+
+  if (nav.share && nav.canShare && nav.canShare({ files: [file] })) {
+    try {
+      await nav.share({
+        files: [file],
+        title: recipeTitle(recipe),
+        text: `${recipeTitle(recipe)} — a coffee recipe on Bloom`,
+        url: link,
+      });
+      return;
+    } catch (error) {
+      if ((error as Error)?.name === "AbortError") return;
+    }
+  }
+
+  const objectUrl = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = objectUrl;
+  anchor.download = filename;
+  anchor.click();
+  URL.revokeObjectURL(objectUrl);
+}
+
+type ShareStyle = "bar" | "card" | "type";
+type ShareFormat = "story" | "square";
+
+function coverDraw(
+  ctx: CanvasRenderingContext2D,
+  img: HTMLImageElement,
+  W: number,
+  H: number,
+) {
+  const scale = Math.max(W / img.naturalWidth, H / img.naturalHeight);
+  const w = img.naturalWidth * scale;
+  const h = img.naturalHeight * scale;
+  ctx.drawImage(img, (W - w) / 2, (H - h) / 2, w, h);
+}
+
+// Draws a shareable image with the user's photo as the background and the
+// recipe as an overlay, in one of three styles. The photo never leaves the
+// device — everything happens on a local canvas.
+async function renderPhotoShareImage(
+  recipe: Recipe,
+  photo: HTMLImageElement,
+  style: ShareStyle,
+  format: ShareFormat,
+): Promise<Blob> {
+  const W = 1080;
+  const H = format === "story" ? 1920 : 1080;
+  const accent = brewerAccent[recipe.brewer] ?? SHARE_ACCENT_FALLBACK;
+  const font = (spec: string) => `${spec} 'Hanken Grotesk', Arial, sans-serif`;
+
+  const canvas = document.createElement("canvas");
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Canvas is unavailable");
+
+  coverDraw(ctx, photo, W, H);
+
+  // Wordmark + link, top-left over the photo.
+  ctx.textAlign = "left";
+  ctx.shadowColor = "rgba(0, 0, 0, 0.55)";
+  ctx.shadowBlur = 14;
+  ctx.fillStyle = "#ffffff";
+  ctx.font = font("800 42px");
+  ctx.fillText("Bloom", 56, 104);
+  ctx.font = font("600 24px");
+  ctx.fillText("bloom.rohanmahnot.space", 56, 142);
+  ctx.shadowBlur = 0;
+
+  const title = recipeTitle(recipe);
+  const stats: [string, string][] = [];
+  if (recipe.dose) stats.push(["COFFEE", `${recipe.dose}g`]);
+  if (recipe.water) stats.push(["WATER", `${recipe.water}g`]);
+  if (recipe.ratio) stats.push(["RATIO", ratioLabel(recipe.ratio)]);
+  stats.push(["TIME", formatTime(totalTime(recipe.timeline))]);
+  const statLine = stats.map(([, v]) => v).join(" · ");
+  const byline = recipe.creator.trim()
+    ? `${recipe.brewer} · by ${displayCreator(recipe.creator)}`
+    : recipe.brewer;
+
+  if (style === "bar") {
+    const barH = 118 + 150;
+    const top = H - barH;
+    ctx.fillStyle = "rgba(250, 248, 244, 0.96)";
+    ctx.fillRect(0, top, W, barH);
+    ctx.fillStyle = accent;
+    ctx.fillRect(0, top, W, 10);
+
+    ctx.fillStyle = "#20201e";
+    ctx.font = font("700 44px");
+    ctx.fillText(wrapCanvasText(ctx, `${title} — ${recipe.brewer}`, W - 112)[0], 56, top + 78);
+
+    const cellW = (W - 112) / stats.length;
+    ctx.strokeStyle = "#e5ddd2";
+    ctx.lineWidth = 2;
+    stats.forEach(([label, value], i) => {
+      const cx = 56 + i * cellW;
+      if (i) {
+        ctx.beginPath();
+        ctx.moveTo(cx, top + 108);
+        ctx.lineTo(cx, top + barH - 30);
+        ctx.stroke();
+      }
+      ctx.fillStyle = "#6e6b66";
+      ctx.font = font("700 22px");
+      ctx.fillText(label, cx + (i ? 28 : 0), top + 142);
+      ctx.fillStyle = "#20201e";
+      ctx.font = font("700 46px");
+      ctx.fillText(value, cx + (i ? 28 : 0), top + 204);
+    });
+  } else if (style === "card") {
+    ctx.font = font("700 48px");
+    const cardW = Math.min(W - 112, 760);
+    const titleLines = wrapCanvasText(ctx, title, cardW - 120).slice(0, 2);
+    const cardH = 150 + titleLines.length * 58;
+    const left = 56;
+    const top = H - cardH - 64;
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.roundRect(left, top, cardW, cardH, 22);
+    ctx.fillStyle = "rgba(250, 248, 244, 0.96)";
+    ctx.fill();
+    ctx.clip();
+    ctx.fillStyle = accent;
+    ctx.fillRect(left, top, 10, cardH);
+    ctx.restore();
+
+    ctx.fillStyle = "#486c63";
+    ctx.font = font("800 24px");
+    ctx.fillText(byline.toUpperCase(), left + 44, top + 58);
+    ctx.fillStyle = "#20201e";
+    ctx.font = font("700 48px");
+    titleLines.forEach((line, i) => ctx.fillText(line, left + 44, top + 122 + i * 58));
+    ctx.fillStyle = "#6e6b66";
+    ctx.font = font("600 32px");
+    ctx.fillText(statLine, left + 44, top + cardH - 40);
+  } else {
+    const gradTop = H * 0.5;
+    const grad = ctx.createLinearGradient(0, H, 0, gradTop);
+    grad.addColorStop(0, "rgba(18, 14, 10, 0.9)");
+    grad.addColorStop(0.75, "rgba(18, 14, 10, 0.45)");
+    grad.addColorStop(1, "rgba(18, 14, 10, 0)");
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, gradTop, W, H - gradTop);
+
+    ctx.font = font("800 100px");
+    const titleLines = wrapCanvasText(ctx, title, W - 112).slice(0, 2);
+    let y = H - 96 - titleLines.length * 108;
+
+    ctx.fillStyle = "#e9c98a";
+    ctx.font = font("800 30px");
+    ctx.fillText(byline.toUpperCase(), 56, y - 26);
+    ctx.fillStyle = "#ffffff";
+    ctx.font = font("800 100px");
+    titleLines.forEach((line) => {
+      ctx.fillText(line, 56, y + 100 - 12);
+      y += 108;
+    });
+    ctx.fillStyle = "rgba(255, 255, 255, 0.94)";
+    ctx.font = font("600 40px");
+    ctx.fillText(statLine, 56, H - 64);
+  }
+
+  return await new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob(
+      (result) => (result ? resolve(result) : reject(new Error("Image export failed"))),
+      "image/jpeg",
+      0.92,
+    );
+  });
 }
 
 function readNumberInput(value: string) {
@@ -778,8 +988,13 @@ export default function Home() {
           onPublish={publishRecipe}
           publishMessage={publishMessage}
         />
+      ) : view === "share" ? (
+        <ShareComposer
+          recipe={activeRecipe}
+          onBack={() => go("recipe", activeRecipe.id)}
+        />
       ) : view === "recipe" ? (
-        <RecipePage recipe={activeRecipe} />
+        <RecipePage recipe={activeRecipe} onShare={() => go("share", activeRecipe.id)} />
       ) : view === "creator" ? (
         <CreatorProfile
           username={activeId}
@@ -1600,18 +1815,7 @@ function Builder({
   );
 }
 
-function RecipePage({ recipe }: { recipe: Recipe }) {
-  const [isExporting, setIsExporting] = useState(false);
-
-  async function handleExport() {
-    setIsExporting(true);
-    try {
-      await exportRecipeJpeg(recipe);
-    } finally {
-      setIsExporting(false);
-    }
-  }
-
+function RecipePage({ recipe, onShare }: { recipe: Recipe; onShare: () => void }) {
   return (
     <section className="recipe-page print-page">
       <div className="recipe-actions">
@@ -1619,8 +1823,8 @@ function RecipePage({ recipe }: { recipe: Recipe }) {
           <p className="eyebrow share-path">/{slugify(recipe.creator) || "guest"}/{recipe.id}</p>
         </div>
         <div className="action-group">
-          <button className="primary-button" disabled={isExporting} onClick={handleExport}>
-            {isExporting ? "Exporting..." : "Export JPEG"}
+          <button className="primary-button" onClick={onShare}>
+            Share
           </button>
           <button className="secondary-button" onClick={() => window.print()}>
             Print
@@ -1631,6 +1835,131 @@ function RecipePage({ recipe }: { recipe: Recipe }) {
         <RecipeHeader recipe={recipe} />
         <Timeline recipe={recipe} />
       </div>
+    </section>
+  );
+}
+
+const shareStyles: { key: ShareStyle; label: string }[] = [
+  { key: "bar", label: "Stat bar" },
+  { key: "card", label: "Card" },
+  { key: "type", label: "Big type" },
+];
+
+function ShareComposer({ recipe, onBack }: { recipe: Recipe; onBack: () => void }) {
+  const [photo, setPhoto] = useState<HTMLImageElement | null>(null);
+  const [style, setStyle] = useState<ShareStyle>("bar");
+  const [format, setFormat] = useState<ShareFormat>("story");
+  const [previewUrl, setPreviewUrl] = useState<string>("");
+  const [isSharing, setIsSharing] = useState(false);
+  const blobRef = useRef<Blob | null>(null);
+
+  // Re-render the share image whenever anything changes. The blob is kept
+  // ready so Share can call navigator.share() inside the tap gesture.
+  useEffect(() => {
+    let alive = true;
+    const render = photo
+      ? renderPhotoShareImage(recipe, photo, style, format)
+      : renderRecipeImage(recipe);
+    render
+      .then((blob) => {
+        if (!alive) return;
+        blobRef.current = blob;
+        const url = URL.createObjectURL(blob);
+        setPreviewUrl((old) => {
+          if (old) URL.revokeObjectURL(old);
+          return url;
+        });
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [recipe, photo, style, format]);
+
+  function onPickPhoto(e: ReactChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => setPhoto(img);
+    img.src = url;
+    e.target.value = "";
+  }
+
+  async function handleShare() {
+    setIsSharing(true);
+    try {
+      await shareRecipeImage(recipe, blobRef.current);
+    } finally {
+      setIsSharing(false);
+    }
+  }
+
+  return (
+    <section className="share-composer mx-auto px-5 sm:px-8">
+      <div className="composer-head">
+        <button className="ghost-button" onClick={onBack}>
+          ← Back
+        </button>
+        <p className="field-label" style={{ margin: 0 }}>
+          Share this recipe
+        </p>
+      </div>
+
+      <div className={format === "square" && photo ? "composer-preview square" : "composer-preview"}>
+        {previewUrl ? <img src={previewUrl} alt="Share preview" /> : <div className="composer-loading">Preparing…</div>}
+      </div>
+
+      <div className="composer-controls">
+        <label className="secondary-button photo-pick">
+          {photo ? "Change photo" : "＋ Add photo"}
+          <input type="file" accept="image/*" onChange={onPickPhoto} hidden />
+        </label>
+        {photo ? (
+          <button className="ghost-button" onClick={() => setPhoto(null)}>
+            Remove photo
+          </button>
+        ) : null}
+      </div>
+
+      {photo ? (
+        <>
+          <div className="composer-controls">
+            {shareStyles.map(({ key, label }) => (
+              <button
+                key={key}
+                className={style === key ? "style-chip is-active" : "style-chip"}
+                onClick={() => setStyle(key)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <div className="composer-controls">
+            <button
+              className={format === "story" ? "style-chip is-active" : "style-chip"}
+              onClick={() => setFormat("story")}
+            >
+              9:16 story
+            </button>
+            <button
+              className={format === "square" ? "style-chip is-active" : "style-chip"}
+              onClick={() => setFormat("square")}
+            >
+              1:1 square
+            </button>
+          </div>
+        </>
+      ) : (
+        <p className="composer-hint">
+          Add a photo of your brew for a Strava-style share — or share the clean recipe card as is.
+        </p>
+      )}
+
+      <button className="primary-button composer-share" disabled={isSharing} onClick={handleShare}>
+        {isSharing ? "Preparing…" : "Share"}
+      </button>
+      <p className="composer-privacy">Your photo stays on your device — it&rsquo;s never uploaded.</p>
     </section>
   );
 }
