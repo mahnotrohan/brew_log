@@ -101,9 +101,7 @@ const eventTypes = [
   "Custom",
 ];
 
-const recipeStorageKey = "brew.recipes.v1";
 const authorCookieKey = "brew_author_name";
-const visitorCookieKey = "brew_seen";
 const onboardedStorageKey = "bloom.onboarded.v1";
 
 const seedRecipes: Recipe[] = [
@@ -858,18 +856,6 @@ function fromDraft(draft: Draft, recipes: Recipe[]): Recipe {
   };
 }
 
-function readRecipes() {
-  if (typeof window === "undefined") return seedRecipes;
-  try {
-    const stored = window.localStorage.getItem(recipeStorageKey);
-    return stored
-      ? migrateRecipes(JSON.parse(stored) as StoredRecipe[])
-      : seedRecipes;
-  } catch {
-    return seedRecipes;
-  }
-}
-
 function readCookie(name: string) {
   if (typeof document === "undefined") return "";
   const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -909,18 +895,10 @@ function migrateRecipes(recipes: StoredRecipe[]) {
   return recipes.map(normalizeStoredRecipe);
 }
 
-function isReturningVisitor() {
-  try {
-    return readCookie(visitorCookieKey) === "1";
-  } catch {
-    return false;
-  }
-}
-
 const recipesApiPath = "/api/recipes";
 
-// Shared server storage (Cloudflare D1). Returns null on any failure so the
-// caller can fall back to browser localStorage and keep working offline.
+// Shared server storage (Cloudflare D1) — the only store for recipes.
+// Returns null on failure; the UI keeps showing seeds until it succeeds.
 async function fetchServerRecipes(): Promise<Recipe[] | null> {
   try {
     const response = await fetch(recipesApiPath, {
@@ -949,7 +927,6 @@ async function saveServerRecipe(recipe: Recipe): Promise<boolean> {
 }
 
 export default function Home() {
-  const storageReady = useRef(false);
   const [recipes, setRecipes] = useState<Recipe[]>(seedRecipes);
   const [draft, setDraft] = useState<Draft>(blankDraft);
   const [view, setView] = useState("home");
@@ -973,26 +950,12 @@ export default function Home() {
 
   useEffect(() => {
     const hydrateStorage = window.setTimeout(() => {
-      const cached = readRecipes();
-      setRecipes(cached);
-      storageReady.current = true;
-      writeCookie(visitorCookieKey, "1");
-
-      // Reconcile with shared server storage (D1). The server is the single
-      // source of truth: on load we replace the local view with whatever the
-      // server has. We do NOT auto-upload device-only recipes here — publishing
-      // is what pushes a recipe up — so deletions on the server actually stick
-      // instead of being resurrected from a stale local cache. If the server is
-      // unreachable or empty, we silently keep the localStorage / seed view.
+      // The server (D1) is the only store for recipes — nothing is read from
+      // or written to this device. Seeds show only while loading / offline.
       void (async () => {
         const server = await fetchServerRecipes();
         if (!server || !server.length) return;
         setRecipes(server);
-        try {
-          window.localStorage.setItem(recipeStorageKey, JSON.stringify(server));
-        } catch {
-          // ignore cache write failures
-        }
       })();
 
       if (window.location.hash.replace("#/", "").split("/")[0] === "builder") {
@@ -1026,12 +989,6 @@ export default function Home() {
       window.removeEventListener("hashchange", syncRoute);
     };
   }, []);
-
-  useEffect(() => {
-    if (storageReady.current && recipes.length) {
-      window.localStorage.setItem(recipeStorageKey, JSON.stringify(recipes));
-    }
-  }, [recipes]);
 
   const activeRecipe =
     recipes.find((recipe) => recipe.id === activeId) ?? recipes[0] ?? seedRecipes[0];
