@@ -104,6 +104,7 @@ const eventTypes = [
 const recipeStorageKey = "brew.recipes.v1";
 const authorCookieKey = "brew_author_name";
 const visitorCookieKey = "brew_seen";
+const onboardedStorageKey = "bloom.onboarded.v1";
 
 const seedRecipes: Recipe[] = [
   {
@@ -506,6 +507,43 @@ function coverDraw(
   ctx.drawImage(img, (W - w) / 2, (H - h) / 2, w, h);
 }
 
+// Draws the photo to fill the canvas. When the photo's aspect ratio is close
+// to the canvas, cover-crop. When it's far off, avoid heavy cropping: draw a
+// blurred, zoomed cover as the backdrop and the full photo fitted on top.
+function photoDraw(
+  ctx: CanvasRenderingContext2D,
+  img: HTMLImageElement,
+  W: number,
+  H: number,
+) {
+  const imgRatio = img.naturalWidth / img.naturalHeight;
+  const canvasRatio = W / H;
+  const mismatch = Math.abs(Math.log(imgRatio / canvasRatio));
+
+  if (mismatch < 0.25) {
+    coverDraw(ctx, img, W, H);
+    return;
+  }
+
+  // Blurred backdrop (scaled up slightly so blur edges never show).
+  ctx.save();
+  ctx.filter = "blur(48px)";
+  const bScale = Math.max(W / img.naturalWidth, H / img.naturalHeight) * 1.12;
+  const bw = img.naturalWidth * bScale;
+  const bh = img.naturalHeight * bScale;
+  ctx.drawImage(img, (W - bw) / 2, (H - bh) / 2, bw, bh);
+  ctx.restore();
+  // Slight darkening so the fitted photo pops.
+  ctx.fillStyle = "rgba(20, 16, 12, 0.18)";
+  ctx.fillRect(0, 0, W, H);
+
+  // Full photo, fitted (no crop), centered.
+  const fScale = Math.min(W / img.naturalWidth, H / img.naturalHeight);
+  const fw = img.naturalWidth * fScale;
+  const fh = img.naturalHeight * fScale;
+  ctx.drawImage(img, (W - fw) / 2, (H - fh) / 2, fw, fh);
+}
+
 // Draws a shareable image with the user's photo as the background and the
 // recipe as an overlay, in one of three styles. The photo never leaves the
 // device — everything happens on a local canvas.
@@ -526,7 +564,7 @@ async function renderPhotoShareImage(
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("Canvas is unavailable");
 
-  coverDraw(ctx, photo, W, H);
+  photoDraw(ctx, photo, W, H);
 
   // Wordmark + link, top-left over the photo.
   ctx.textAlign = "left";
@@ -872,6 +910,16 @@ export default function Home() {
   const [publishMessage, setPublishMessage] = useState("");
   const [justPublishedId, setJustPublishedId] = useState("");
   const [shareId, setShareId] = useState("");
+  const [showOnboarding, setShowOnboarding] = useState(false);
+
+  function dismissOnboarding() {
+    try {
+      window.localStorage.setItem(onboardedStorageKey, "1");
+    } catch {
+      // ignore
+    }
+    setShowOnboarding(false);
+  }
 
   useEffect(() => {
     const hydrateStorage = window.setTimeout(() => {
@@ -902,6 +950,17 @@ export default function Home() {
           ...currentDraft,
           creator: currentDraft.creator || readAuthorName(),
         }));
+      }
+
+      // First-visit onboarding: once per browser, and never when someone
+      // arrives on a shared deep link (recipe/builder/etc).
+      try {
+        const isDeepLink = Boolean(window.location.hash.replace("#/", ""));
+        if (!isDeepLink && !window.localStorage.getItem(onboardedStorageKey)) {
+          setShowOnboarding(true);
+        }
+      } catch {
+        // storage unavailable — skip onboarding quietly
       }
     }, 0);
 
@@ -1007,6 +1066,7 @@ export default function Home() {
           onBrewerFilter={setBrewerFilter}
           onOpen={(id) => go("recipe", id)}
           onCreate={startNewRecipe}
+          onShare={(id) => setShareId(id)}
         />
       )}
       {shareId ? (
@@ -1015,7 +1075,61 @@ export default function Home() {
           onClose={() => setShareId("")}
         />
       ) : null}
+      {showOnboarding ? <OnboardingOverlay onDone={dismissOnboarding} /> : null}
     </main>
+  );
+}
+
+const onboardingSlides = [
+  {
+    icon: "☕",
+    title: "A shared library of brews",
+    body: "Browse recipes from world champions, your favourite creators — and people like you.",
+  },
+  {
+    icon: "✍️",
+    title: "Write it how you'd say it",
+    body: "Just coffee, water, and your pours — “at 0:40, pour to 150g.” Everything else is optional.",
+  },
+  {
+    icon: "📸",
+    title: "Share your brew",
+    body: "Turn any recipe into a beautiful story card — add a photo of your cup if you like.",
+  },
+];
+
+function OnboardingOverlay({ onDone }: { onDone: () => void }) {
+  const [slide, setSlide] = useState(0);
+  const current = onboardingSlides[slide];
+  const isLast = slide === onboardingSlides.length - 1;
+
+  return (
+    <div className="ob-backdrop" onClick={onDone}>
+      <div
+        className="ob-card"
+        role="dialog"
+        aria-label="Welcome to Bloom"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="ob-icon" aria-hidden>{current.icon}</div>
+        <h3>{current.title}</h3>
+        <p>{current.body}</p>
+        <div className="ob-dots" aria-hidden>
+          {onboardingSlides.map((_, i) => (
+            <span key={i} className={i === slide ? "ob-dot on" : "ob-dot"} />
+          ))}
+        </div>
+        <button
+          className="primary-button ob-next"
+          onClick={() => (isLast ? onDone() : setSlide(slide + 1))}
+        >
+          {isLast ? "Start brewing" : "Next"}
+        </button>
+        <button className="ob-skip" onClick={onDone}>
+          Skip
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -1103,6 +1217,7 @@ function Library({
   onBrewerFilter,
   onOpen,
   onCreate,
+  onShare,
 }: {
   recipes: Recipe[];
   search: string;
@@ -1111,6 +1226,7 @@ function Library({
   onBrewerFilter: (value: string) => void;
   onOpen: (id: string) => void;
   onCreate: () => void;
+  onShare: (id: string) => void;
 }) {
   return (
     <>
@@ -1163,6 +1279,7 @@ function Library({
               key={recipe.id}
               recipe={recipe}
               onOpen={() => onOpen(recipe.id)}
+              onShare={() => onShare(recipe.id)}
             />
           ))}
         </div>
@@ -1286,9 +1403,11 @@ function BrewerIcon({ brewer }: { brewer: string }) {
 function RecipeCard({
   recipe,
   onOpen,
+  onShare,
 }: {
   recipe: Recipe;
   onOpen: () => void;
+  onShare?: () => void;
 }) {
   function handleCardKeyDown(event: ReactKeyboardEvent<HTMLElement>) {
     if (event.key === "Enter" || event.key === " ") {
@@ -1332,7 +1451,21 @@ function RecipeCard({
           <strong>{formatTime(totalTime(recipe.timeline))}</strong>
         </div>
       </div>
-      {author ? <p className="creator-line">by {author}</p> : null}
+      <div className="rc-foot">
+        {author ? <p className="creator-line">by {author}</p> : <span />}
+        {onShare ? (
+          <button
+            className="card-share"
+            aria-label={`Share ${recipeTitle(recipe)}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              onShare();
+            }}
+          >
+            ↗
+          </button>
+        ) : null}
+      </div>
     </article>
   );
 }
@@ -1828,6 +1961,33 @@ function RecipePage({
   sharePrompt?: boolean;
   onDismissPrompt?: () => void;
 }) {
+  const [isSharing, setIsSharing] = useState(false);
+  const quickBlobRef = useRef<Blob | null>(null);
+
+  // Pre-render the default share card the moment the page loads, so tapping
+  // Share opens the native sheet instantly (and inside the tap gesture).
+  useEffect(() => {
+    let alive = true;
+    quickBlobRef.current = null;
+    renderRecipeImage(recipe)
+      .then((blob) => {
+        if (alive) quickBlobRef.current = blob;
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [recipe]);
+
+  async function quickShare() {
+    setIsSharing(true);
+    try {
+      await shareRecipeImage(recipe, quickBlobRef.current);
+    } finally {
+      setIsSharing(false);
+    }
+  }
+
   return (
     <section className="recipe-page print-page">
       {sharePrompt ? (
@@ -1851,8 +2011,8 @@ function RecipePage({
           <p className="eyebrow share-path">/{slugify(recipe.creator) || "guest"}/{recipe.id}</p>
         </div>
         <div className="action-group">
-          <button className="primary-button" onClick={onShare}>
-            Share
+          <button className="primary-button" disabled={isSharing} onClick={quickShare}>
+            {isSharing ? "Sharing…" : "↗ Share"}
           </button>
         </div>
       </div>
@@ -1860,6 +2020,9 @@ function RecipePage({
         <RecipeHeader recipe={recipe} />
         <Timeline recipe={recipe} />
       </div>
+      <button className="customize-link" onClick={onShare}>
+        Customize with a photo →
+      </button>
     </section>
   );
 }
