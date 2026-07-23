@@ -2372,6 +2372,14 @@ function BrewMode({
     }
   }
 
+  // Jump the clock to the next step (or to the finish if on the last one).
+  function skipToNext() {
+    const target = currentIndex + 1 < steps.length ? eventStart(steps, currentIndex + 1) : total;
+    baseRef.current = target;
+    startRef.current = Date.now();
+    setElapsed(target);
+  }
+
   const step = currentIndex >= 0 ? steps[currentIndex] : null;
   const stepStart = step ? eventStart(steps, currentIndex) : 0;
   const stepEnd = step ? Math.max(eventEnd(steps, currentIndex), stepStart + 1) : 1;
@@ -2494,7 +2502,13 @@ function BrewMode({
             <button className="secondary-button" onClick={togglePause}>
               {paused ? "▶ Resume" : "⏸ Pause"}
             </button>
+            <button className="secondary-button" onClick={skipToNext}>
+              Skip →
+            </button>
+          </div>
+          <div className="brew-subcontrols">
             <button className="ghost-button" onClick={start}>Restart</button>
+            <button className="ghost-button brew-exit" onClick={onExit}>Exit brew</button>
           </div>
         </div>
       ) : (

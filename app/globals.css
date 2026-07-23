@@ -3128,3 +3128,14 @@ select {
   font-size: 0.85rem;
   font-weight: 700;
 }
+
+.brew-subcontrols {
+  display: flex;
+  justify-content: center;
+  gap: 18px;
+  margin-top: 10px;
+}
+
+.brew-exit {
+  color: #b3542f;
+}
