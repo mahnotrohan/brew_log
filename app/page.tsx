@@ -959,6 +959,7 @@ export default function Home() {
   const [publishMessage, setPublishMessage] = useState("");
   const [justPublishedId, setJustPublishedId] = useState("");
   const [shareId, setShareId] = useState("");
+  const [brewId, setBrewId] = useState("");
   const [showOnboarding, setShowOnboarding] = useState(false);
 
   function dismissOnboarding() {
@@ -1096,6 +1097,7 @@ export default function Home() {
         <RecipePage
           recipe={activeRecipe}
           onShare={() => setShareId(activeRecipe.id)}
+          onBrew={() => setBrewId(activeRecipe.id)}
           sharePrompt={justPublishedId === activeRecipe.id}
           onDismissPrompt={() => setJustPublishedId("")}
         />
@@ -1122,6 +1124,16 @@ export default function Home() {
         <ShareSheet
           recipe={recipes.find((r) => r.id === shareId) ?? activeRecipe}
           onClose={() => setShareId("")}
+        />
+      ) : null}
+      {brewId ? (
+        <BrewMode
+          recipe={recipes.find((r) => r.id === brewId) ?? activeRecipe}
+          onExit={() => setBrewId("")}
+          onShare={() => {
+            setBrewId("");
+            setShareId(brewId);
+          }}
         />
       ) : null}
       {showOnboarding ? <OnboardingOverlay onDone={dismissOnboarding} /> : null}
@@ -2002,11 +2014,13 @@ function Builder({
 function RecipePage({
   recipe,
   onShare,
+  onBrew,
   sharePrompt = false,
   onDismissPrompt,
 }: {
   recipe: Recipe;
   onShare: () => void;
+  onBrew: () => void;
   sharePrompt?: boolean;
   onDismissPrompt?: () => void;
 }) {
@@ -2060,7 +2074,10 @@ function RecipePage({
           <p className="eyebrow share-path">/{slugify(recipe.creator) || "guest"}/{recipe.id}</p>
         </div>
         <div className="action-group">
-          <button className="primary-button" disabled={isSharing} onClick={quickShare}>
+          <button className="primary-button" onClick={onBrew}>
+            ▶ Brew
+          </button>
+          <button className="secondary-button" disabled={isSharing} onClick={quickShare}>
             {isSharing ? "Sharing…" : "↗ Share"}
           </button>
         </div>
@@ -2230,6 +2247,290 @@ function ShareSheet({ recipe, onClose }: { recipe: Recipe; onClose: () => void }
         </button>
         <p className="composer-privacy">Your photo stays on your device — never uploaded.</p>
       </div>
+    </div>
+  );
+}
+
+function BrewMode({
+  recipe,
+  onExit,
+  onShare,
+}: {
+  recipe: Recipe;
+  onExit: () => void;
+  onShare: () => void;
+}) {
+  const [phase, setPhase] = useState<"ready" | "running" | "done">("ready");
+  const [dose, setDose] = useState(recipe.dose > 0 ? recipe.dose : 15);
+  const [elapsed, setElapsed] = useState(0);
+  const [paused, setPaused] = useState(false);
+  const [cueIndex, setCueIndex] = useState(-1);
+  const startRef = useRef(0);
+  const baseRef = useRef(0);
+  const lastStepRef = useRef(-1);
+
+  const steps = recipe.timeline;
+  const total = totalTime(steps);
+  const factor = recipe.dose > 0 ? dose / recipe.dose : 1;
+  const scaledWater = recipe.water > 0 ? Math.round(recipe.water * factor) : 0;
+
+  const scaledTarget = (target: string) => {
+    const n = targetNumber(target);
+    return n === null ? null : Math.round(n * factor);
+  };
+
+  const stepLabel = (index: number) => {
+    const step = steps[index];
+    const n = scaledTarget(step.target);
+    if (isDrawdownEvent(step) || (step.range && n === null)) return step.type;
+    return n === null ? step.type : `${step.type} to ${n}g`;
+  };
+
+  // Ticking clock.
+  useEffect(() => {
+    if (phase !== "running" || paused) return;
+    const id = window.setInterval(() => {
+      setElapsed(baseRef.current + (Date.now() - startRef.current) / 1000);
+    }, 200);
+    return () => window.clearInterval(id);
+  }, [phase, paused]);
+
+  // Which step are we in?
+  let currentIndex = -1;
+  steps.forEach((_, i) => {
+    if (eventStart(steps, i) <= elapsed) currentIndex = i;
+  });
+
+  // Step-change cues + completion (auto-advance is purely clock-driven).
+  useEffect(() => {
+    if (phase !== "running") return;
+    if (elapsed >= total) {
+      setPhase("done");
+      try {
+        navigator.vibrate?.([200, 100, 200]);
+      } catch {
+        // no vibration support
+      }
+      return;
+    }
+    if (currentIndex >= 0 && currentIndex !== lastStepRef.current) {
+      lastStepRef.current = currentIndex;
+      setCueIndex(currentIndex);
+      try {
+        navigator.vibrate?.(200);
+      } catch {
+        // no vibration support
+      }
+      const t = window.setTimeout(() => setCueIndex(-1), 1300);
+      return () => window.clearTimeout(t);
+    }
+  }, [currentIndex, elapsed, phase, total]);
+
+  // Keep the screen awake while brewing.
+  useEffect(() => {
+    if (phase !== "running") return;
+    type WakeLockSentinel = { release: () => Promise<void> };
+    let lock: WakeLockSentinel | null = null;
+    const nav = navigator as Navigator & {
+      wakeLock?: { request: (type: "screen") => Promise<WakeLockSentinel> };
+    };
+    const request = () => {
+      nav.wakeLock
+        ?.request("screen")
+        .then((l) => {
+          lock = l;
+        })
+        .catch(() => {});
+    };
+    request();
+    const onVis = () => {
+      if (document.visibilityState === "visible") request();
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      document.removeEventListener("visibilitychange", onVis);
+      lock?.release().catch(() => {});
+    };
+  }, [phase]);
+
+  function start() {
+    baseRef.current = 0;
+    startRef.current = Date.now();
+    lastStepRef.current = -1;
+    setElapsed(0);
+    setPaused(false);
+    setPhase("running");
+  }
+
+  function togglePause() {
+    if (paused) {
+      startRef.current = Date.now();
+      setPaused(false);
+    } else {
+      baseRef.current = elapsed;
+      setPaused(true);
+    }
+  }
+
+  const step = currentIndex >= 0 ? steps[currentIndex] : null;
+  const stepStart = step ? eventStart(steps, currentIndex) : 0;
+  const stepEnd = step ? Math.max(eventEnd(steps, currentIndex), stepStart + 1) : 1;
+  const isRangeStep = step ? step.range || isDrawdownEvent(step) : false;
+  const progress = step
+    ? Math.min(1, Math.max(0, (elapsed - stepStart) / (stepEnd - stepStart)))
+    : 0;
+  const CIRC = 2 * Math.PI * 52;
+  const next = currentIndex + 1 < steps.length ? steps[currentIndex + 1] : null;
+
+  return (
+    <div className="brew-mode" role="dialog" aria-label="Guided brew">
+      {phase === "ready" ? (
+        <div className="brew-inner">
+          <div className="brew-top">
+            <button className="ghost-button" onClick={onExit}>← Recipe</button>
+            <span className="brew-eyebrow">Guided brew</span>
+            <span className="brew-top-spacer" />
+          </div>
+          <h2 className="brew-title">{recipeTitle(recipe)}</h2>
+          <div className="brew-metrics">
+            <div><span>Coffee</span><strong>{dose}g</strong></div>
+            <div><span>Water</span><strong>{scaledWater ? `${scaledWater}g` : "—"}</strong></div>
+            {recipe.temp ? <div><span>Temp</span><strong>{recipe.temp}°C</strong></div> : null}
+            <div><span>Time</span><strong>{formatTime(total)}</strong></div>
+          </div>
+          {recipe.dose > 0 ? (
+            <div className="brew-scaler">
+              <p>Brewing more or less? Targets scale.</p>
+              <div className="brew-scaler-row">
+                <button aria-label="Less coffee" onClick={() => setDose(Math.max(1, dose - 1))}>−</button>
+                <div className="brew-scaler-val">
+                  {dose}g
+                  <small>coffee · {scaledWater}g water</small>
+                </div>
+                <button aria-label="More coffee" onClick={() => setDose(dose + 1)}>＋</button>
+              </div>
+            </div>
+          ) : null}
+          <div className="brew-steps-list">
+            {steps.slice(0, 7).map((s, i) => (
+              <div key={s.id}>
+                {isDrawdownEvent(s) ? "~" : ""}
+                {formatTime(eventStart(steps, i))} · {stepLabel(i)}
+                {s.note.trim() ? ` — ${s.note}` : ""}
+              </div>
+            ))}
+          </div>
+          <button className="primary-button brew-start" onClick={start}>
+            ▶ Start brew
+          </button>
+        </div>
+      ) : phase === "running" ? (
+        <div className="brew-inner">
+          <div className="brew-top">
+            <button className="ghost-button" onClick={onExit}>✕ End</button>
+            <span className="brew-eyebrow">{recipeTitle(recipe)}</span>
+            <span className="brew-top-spacer" />
+          </div>
+          <div className="brew-clock">
+            {formatTime(Math.floor(elapsed))}
+            <small>elapsed{paused ? " · paused" : ""}</small>
+          </div>
+          <div className="brew-arc">
+            <svg width="220" height="220" viewBox="0 0 118 118">
+              <circle cx="59" cy="59" r="52" fill="none" stroke="var(--rule)" strokeWidth="6" />
+              <circle
+                cx="59"
+                cy="59"
+                r="52"
+                fill="none"
+                stroke="var(--amber)"
+                strokeWidth="6"
+                strokeLinecap="round"
+                strokeDasharray={CIRC}
+                strokeDashoffset={CIRC * (1 - progress)}
+                transform="rotate(-90 59 59)"
+              />
+            </svg>
+            <div className="brew-arc-inner">
+              {step ? (
+                isRangeStep ? (
+                  <>
+                    <span className="brew-act">{step.type}</span>
+                    <span className="brew-target">
+                      {formatTime(Math.max(0, Math.ceil(stepEnd - elapsed)))}
+                      <small>left</small>
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <span className="brew-act">{step.type}</span>
+                    <span className="brew-target">
+                      {scaledTarget(step.target) !== null ? `${scaledTarget(step.target)}g` : ""}
+                      <small>by {formatTime(stepEnd)}</small>
+                    </span>
+                  </>
+                )
+              ) : (
+                <span className="brew-act">Get ready…</span>
+              )}
+            </div>
+          </div>
+          {next ? (
+            <div className="brew-next">
+              Next · {formatTime(eventStart(steps, currentIndex + 1))} → <strong>{stepLabel(currentIndex + 1)}</strong>
+            </div>
+          ) : (
+            <div className="brew-next">Last step — finish strong.</div>
+          )}
+          <div className="brew-dots">
+            {steps.map((s, i) => (
+              <span
+                key={s.id}
+                className={i < currentIndex ? "bdot done" : i === currentIndex ? "bdot now" : "bdot"}
+              />
+            ))}
+          </div>
+          <div className="brew-controls">
+            <button className="secondary-button" onClick={togglePause}>
+              {paused ? "▶ Resume" : "⏸ Pause"}
+            </button>
+            <button className="ghost-button" onClick={start}>Restart</button>
+          </div>
+        </div>
+      ) : (
+        <div className="brew-inner brew-done">
+          <div className="brew-top">
+            <button className="ghost-button" onClick={onExit}>✕</button>
+            <span className="brew-eyebrow">{recipeTitle(recipe)}</span>
+            <span className="brew-top-spacer" />
+          </div>
+          <div className="brew-done-icon">✓</div>
+          <h2 className="brew-title">Good brew.</h2>
+          <div className="brew-clock">
+            {formatTime(Math.min(Math.floor(elapsed), total))}
+            <small>total time</small>
+          </div>
+          <div className="brew-metrics">
+            <div><span>Coffee</span><strong>{dose}g</strong></div>
+            <div><span>Water</span><strong>{scaledWater ? `${scaledWater}g` : "—"}</strong></div>
+            <div><span>Target</span><strong>{formatTime(total)}</strong></div>
+          </div>
+          <button className="primary-button brew-start" onClick={onShare}>
+            📸 Share your brew
+          </button>
+          <button className="brew-again" onClick={start}>Brew again</button>
+        </div>
+      )}
+      {cueIndex >= 0 && steps[cueIndex] ? (
+        <div className="brew-cue" aria-live="assertive">
+          <span className="brew-cue-time">{formatTime(eventStart(steps, cueIndex))}</span>
+          <span className="brew-cue-now">Now</span>
+          <span className="brew-cue-big">{stepLabel(cueIndex)}</span>
+          {steps[cueIndex].note.trim() ? (
+            <span className="brew-cue-note">{steps[cueIndex].note}</span>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }
