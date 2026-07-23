@@ -1,0 +1,4 @@
+CREATE TABLE IF NOT EXISTS `deleted_recipes` (
+	`id` text PRIMARY KEY NOT NULL,
+	`deleted_at` text DEFAULT CURRENT_TIMESTAMP NOT NULL
+);

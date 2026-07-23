@@ -1,6 +1,6 @@
 import { desc, eq } from "drizzle-orm";
 import { getDb } from "../../../db";
-import { recipes } from "../../../db/schema";
+import { deletedRecipes, recipes } from "../../../db/schema";
 
 function toRouteErrorMessage(error: unknown) {
   const message = error instanceof Error ? error.message : "Unexpected error";
@@ -59,6 +59,18 @@ export async function POST(request: Request) {
     const data = JSON.stringify({ ...payload, id, createdAt });
 
     const db = getDb();
+
+    // Refuse resurrection: if this id was deleted, stale clients re-uploading
+    // a cached copy get 410 Gone instead of re-creating the recipe.
+    const tombstone = await db
+      .select({ id: deletedRecipes.id })
+      .from(deletedRecipes)
+      .where(eq(deletedRecipes.id, id))
+      .limit(1);
+    if (tombstone.length) {
+      return Response.json({ error: "This recipe was deleted." }, { status: 410 });
+    }
+
     await db
       .insert(recipes)
       .values({ id, creator, title, data, createdAt })
@@ -84,6 +96,8 @@ export async function DELETE(request: Request) {
 
     const db = getDb();
     await db.delete(recipes).where(eq(recipes.id, id));
+    // Tombstone the id so no stale client can ever re-create it.
+    await db.insert(deletedRecipes).values({ id }).onConflictDoNothing();
 
     return Response.json({ ok: true });
   } catch (error) {

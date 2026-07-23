@@ -11,3 +11,10 @@ export const recipes = sqliteTable("recipes", {
   data: text("data").notNull(),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
+
+// Tombstones: ids that have been deleted. POST refuses these, so stale
+// clients (old cached bundles with local copies) can never resurrect them.
+export const deletedRecipes = sqliteTable("deleted_recipes", {
+  id: text("id").primaryKey(),
+  deletedAt: text("deleted_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
